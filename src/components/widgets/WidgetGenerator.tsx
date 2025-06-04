@@ -30,6 +30,15 @@ import {
   Palette,
   MessageSquare,
   Code,
+  Minus,
+  X,
+  Maximize2,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Send,
+  Mic,
+  Paperclip,
 } from "lucide-react";
 
 interface WidgetConfig {
@@ -38,9 +47,13 @@ interface WidgetConfig {
   appearance: {
     theme: "light" | "dark" | "auto";
     primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
     position: "bottom-right" | "bottom-left" | "top-right" | "top-left";
     size: "small" | "medium" | "large";
     borderRadius: number;
+    shadowIntensity: number;
+    fontFamily: string;
   };
   behavior: {
     greeting: string;
@@ -49,12 +62,16 @@ interface WidgetConfig {
     showBranding: boolean;
     enableFileUpload: boolean;
     enableVoice: boolean;
+    showTypingIndicator: boolean;
+    enableSoundEffects: boolean;
   };
   advanced: {
     customCSS: string;
     allowedDomains: string[];
     rateLimiting: boolean;
     analytics: boolean;
+    maxFileSize: number;
+    allowedFileTypes: string[];
   };
 }
 
@@ -63,11 +80,15 @@ const WidgetGenerator = () => {
     name: "Customer Support Widget",
     workflow: "customer-support",
     appearance: {
-      theme: "auto",
-      primaryColor: "#3b82f6",
+      theme: "light",
+      primaryColor: "#2563eb",
+      secondaryColor: "#ffffff",
+      accentColor: "#10b981",
       position: "bottom-right",
       size: "medium",
-      borderRadius: 12,
+      borderRadius: 8,
+      shadowIntensity: 2,
+      fontFamily: "Inter",
     },
     behavior: {
       greeting: "Hi! How can I help you today?",
@@ -76,17 +97,27 @@ const WidgetGenerator = () => {
       showBranding: true,
       enableFileUpload: true,
       enableVoice: false,
+      showTypingIndicator: true,
+      enableSoundEffects: false,
     },
     advanced: {
       customCSS: "",
       allowedDomains: ["*"],
       rateLimiting: true,
       analytics: true,
+      maxFileSize: 10,
+      allowedFileTypes: ["pdf", "doc", "docx", "txt", "jpg", "png"],
     },
   });
 
   const [activeTab, setActiveTab] = useState("appearance");
   const [generatedCode, setGeneratedCode] = useState("");
+  const [previewDevice, setPreviewDevice] = useState<
+    "desktop" | "tablet" | "mobile"
+  >("desktop");
+  const [showTypingIndicator, setShowTypingIndicator] = useState(false);
+  const [isWidgetOpen, setIsWidgetOpen] = useState(true);
+  const [userMessage, setUserMessage] = useState("");
 
   const workflows = [
     { id: "customer-support", name: "Customer Support" },
@@ -143,9 +174,25 @@ const WidgetGenerator = () => {
     }));
   };
 
+  const handleSendMessage = () => {
+    if (userMessage.trim()) {
+      setShowTypingIndicator(true);
+      setTimeout(() => {
+        setShowTypingIndicator(false);
+      }, 2000);
+      setUserMessage("");
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSendMessage();
+    }
+  };
+
   return (
-    <div className="bg-background">
-      <div className="grid gap-6 lg:grid-cols-2">
+    <div className="bg-background min-h-screen">
+      <div className="grid gap-6 lg:grid-cols-[1fr,400px]">
         {/* Configuration Panel */}
         <div className="space-y-6">
           <div>
@@ -248,7 +295,7 @@ const WidgetGenerator = () => {
                               e.target.value,
                             )
                           }
-                          className="w-16 h-9 p-1"
+                          className="w-16 h-10 p-1 cursor-pointer"
                         />
                         <Input
                           value={config.appearance.primaryColor}
@@ -260,6 +307,7 @@ const WidgetGenerator = () => {
                             )
                           }
                           className="flex-1"
+                          placeholder="#2563eb"
                         />
                       </div>
                     </div>
@@ -306,25 +354,6 @@ const WidgetGenerator = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="border-radius">
-                      Border Radius: {config.appearance.borderRadius}px
-                    </Label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="24"
-                      value={config.appearance.borderRadius}
-                      onChange={(e) =>
-                        updateConfig(
-                          "appearance",
-                          "borderRadius",
-                          parseInt(e.target.value),
-                        )
-                      }
-                      className="w-full"
-                    />
                   </div>
                 </CardContent>
               </Card>
@@ -380,7 +409,7 @@ const WidgetGenerator = () => {
                       <div>
                         <Label htmlFor="show-branding">Show Branding</Label>
                         <p className="text-sm text-muted-foreground">
-                          Display "Powered by Axient" text
+                          Display &quot;Powered by Axient&quot; text
                         </p>
                       </div>
                       <Switch
@@ -466,38 +495,6 @@ const WidgetGenerator = () => {
                       Comma-separated list of domains. Use * for all domains.
                     </p>
                   </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="rate-limiting">Rate Limiting</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Limit requests per user
-                        </p>
-                      </div>
-                      <Switch
-                        id="rate-limiting"
-                        checked={config.advanced.rateLimiting}
-                        onCheckedChange={(checked) =>
-                          updateConfig("advanced", "rateLimiting", checked)
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="analytics">Analytics</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Track widget usage and conversations
-                        </p>
-                      </div>
-                      <Switch
-                        id="analytics"
-                        checked={config.advanced.analytics}
-                        onCheckedChange={(checked) =>
-                          updateConfig("advanced", "analytics", checked)
-                        }
-                      />
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -545,7 +542,10 @@ const WidgetGenerator = () => {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Code className="h-8 w-8 mx-auto mb-2" />
-                      <p>Click "Generate Code" to create your embed code</p>
+                      <p>
+                        Click &quot;Generate Code&quot; to create your embed
+                        code
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -555,102 +555,251 @@ const WidgetGenerator = () => {
         </div>
 
         {/* Preview Panel */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Live Preview</CardTitle>
-              <CardDescription>
-                See how your widget will look on your website
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="relative bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-950 rounded-lg p-8 min-h-[400px]">
-                {/* Mock website content */}
-                <div className="space-y-4 opacity-50">
-                  <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
-                  <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-2/3"></div>
-                </div>
-
-                {/* Widget Preview */}
-                <div
-                  className={`absolute ${
-                    config.appearance.position === "bottom-right"
-                      ? "bottom-4 right-4"
-                      : config.appearance.position === "bottom-left"
-                        ? "bottom-4 left-4"
-                        : config.appearance.position === "top-right"
-                          ? "top-4 right-4"
-                          : "top-4 left-4"
-                  }`}
-                >
-                  <div
-                    className={`bg-white dark:bg-gray-800 shadow-lg border ${
-                      config.appearance.size === "small"
-                        ? "w-64 h-80"
-                        : config.appearance.size === "large"
-                          ? "w-80 h-96"
-                          : "w-72 h-88"
-                    }`}
-                    style={{
-                      borderRadius: `${config.appearance.borderRadius}px`,
-                      borderColor: config.appearance.primaryColor,
-                    }}
+              <CardTitle className="flex items-center justify-between">
+                <span>Live Preview</span>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant={
+                      previewDevice === "desktop" ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() => setPreviewDevice("desktop")}
                   >
-                    {/* Widget Header */}
-                    <div
-                      className="p-4 text-white font-medium"
-                      style={{
-                        backgroundColor: config.appearance.primaryColor,
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>AI Assistant</span>
-                        <div className="w-3 h-3 bg-white/30 rounded-full"></div>
-                      </div>
-                    </div>
+                    <Monitor className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={previewDevice === "tablet" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewDevice("tablet")}
+                  >
+                    <Tablet className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={previewDevice === "mobile" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewDevice("mobile")}
+                  >
+                    <Smartphone className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div
+                className={`relative bg-gray-50 rounded-lg overflow-hidden ${
+                  previewDevice === "mobile"
+                    ? "w-[320px] h-[568px] mx-auto"
+                    : previewDevice === "tablet"
+                      ? "w-full max-w-[400px] h-[500px] mx-auto"
+                      : "w-full h-[400px]"
+                }`}
+              >
+                <div className="p-4 h-full">
+                  {/* Mock website content */}
+                  <div className="space-y-3 opacity-30">
+                    <div className="h-3 bg-gray-300 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-300 rounded w-1/2"></div>
+                    <div className="h-3 bg-gray-300 rounded w-2/3"></div>
+                  </div>
 
-                    {/* Widget Content */}
-                    <div className="p-4 space-y-3">
-                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 text-sm">
-                        {config.behavior.greeting}
-                      </div>
-                      <div className="flex justify-end">
+                  {/* Widget Preview */}
+                  <div
+                    className={`absolute ${
+                      config.appearance.position === "bottom-right"
+                        ? "bottom-4 right-4"
+                        : config.appearance.position === "bottom-left"
+                          ? "bottom-4 left-4"
+                          : config.appearance.position === "top-right"
+                            ? "top-4 right-4"
+                            : "top-4 left-4"
+                    }`}
+                  >
+                    {/* Chat Widget Button (when closed) */}
+                    {!isWidgetOpen && (
+                      <button
+                        onClick={() => setIsWidgetOpen(true)}
+                        className={`rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 ${
+                          config.appearance.size === "small"
+                            ? "w-12 h-12"
+                            : config.appearance.size === "large"
+                              ? "w-16 h-16"
+                              : "w-14 h-14"
+                        }`}
+                        style={{
+                          backgroundColor: config.appearance.primaryColor,
+                          borderRadius: `${config.appearance.borderRadius}px`,
+                        }}
+                      >
+                        <MessageSquare className="w-5 h-5 text-white mx-auto" />
+                      </button>
+                    )}
+
+                    {/* Chat Widget (when open) */}
+                    {isWidgetOpen && (
+                      <div
+                        className={`bg-white border shadow-lg overflow-hidden ${
+                          config.appearance.size === "small"
+                            ? "w-64 h-80"
+                            : config.appearance.size === "large"
+                              ? "w-80 h-96"
+                              : "w-72 h-[400px]"
+                        }`}
+                        style={{
+                          borderRadius: `${config.appearance.borderRadius}px`,
+                          fontFamily: config.appearance.fontFamily,
+                        }}
+                      >
+                        {/* Widget Header */}
                         <div
-                          className="text-white rounded-lg p-3 text-sm max-w-xs"
+                          className="px-4 py-3 text-white font-medium flex items-center justify-between"
                           style={{
                             backgroundColor: config.appearance.primaryColor,
+                            borderTopLeftRadius: `${config.appearance.borderRadius}px`,
+                            borderTopRightRadius: `${config.appearance.borderRadius}px`,
                           }}
                         >
-                          Hello! I need help with...
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span className="text-sm font-medium">
+                              AI Assistant
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded flex items-center justify-center transition-colors">
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => setIsWidgetOpen(false)}
+                              className="w-6 h-6 bg-white/20 hover:bg-red-500/80 rounded flex items-center justify-center transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Widget Input */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          placeholder={config.behavior.placeholder}
-                          className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                          disabled
-                        />
-                        <button
-                          className="p-2 text-white rounded-lg"
-                          style={{
-                            backgroundColor: config.appearance.primaryColor,
-                          }}
-                        >
-                          →
-                        </button>
-                      </div>
-                      {config.behavior.showBranding && (
-                        <div className="text-xs text-gray-500 mt-2 text-center">
-                          Powered by Axient
+                        {/* Widget Content */}
+                        <div className="p-4 space-y-3 flex-1 overflow-y-auto bg-gray-50 h-[280px]">
+                          {/* AI Greeting */}
+                          <div className="flex items-start space-x-2">
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                              style={{
+                                backgroundColor: config.appearance.primaryColor,
+                              }}
+                            >
+                              AI
+                            </div>
+                            <div className="bg-white rounded-lg p-3 text-sm shadow-sm max-w-[200px]">
+                              {config.behavior.greeting}
+                            </div>
+                          </div>
+
+                          {/* User Message */}
+                          <div className="flex justify-end">
+                            <div
+                              className="text-white rounded-lg p-3 text-sm max-w-[200px] shadow-sm"
+                              style={{
+                                backgroundColor: config.appearance.primaryColor,
+                              }}
+                            >
+                              Hello! I need help with my account.
+                            </div>
+                          </div>
+
+                          {/* Typing Indicator */}
+                          {showTypingIndicator && (
+                            <div className="flex items-start space-x-2">
+                              <div
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                                style={{
+                                  backgroundColor:
+                                    config.appearance.primaryColor,
+                                }}
+                              >
+                                AI
+                              </div>
+                              <div className="bg-white rounded-lg p-3 shadow-sm">
+                                <div className="flex space-x-1">
+                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                  <div
+                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                    style={{ animationDelay: "0.1s" }}
+                                  ></div>
+                                  <div
+                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                    style={{ animationDelay: "0.2s" }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+
+                        {/* Widget Input */}
+                        <div className="p-3 border-t bg-white">
+                          <div className="flex items-center space-x-2">
+                            {/* File Upload Button */}
+                            {config.behavior.enableFileUpload && (
+                              <button className="p-2 text-gray-500 hover:text-gray-700 transition-colors rounded">
+                                <Paperclip className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* Input Field */}
+                            <div className="flex-1 relative">
+                              <input
+                                type="text"
+                                placeholder={config.behavior.placeholder}
+                                value={userMessage}
+                                onChange={(e) => setUserMessage(e.target.value)}
+                                onKeyPress={handleKeyPress}
+                                className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:border-blue-500 focus:outline-none transition-colors pr-10"
+                                style={{
+                                  borderRadius: `${config.appearance.borderRadius}px`,
+                                  fontFamily: config.appearance.fontFamily,
+                                }}
+                              />
+
+                              {/* Voice Input Button */}
+                              {config.behavior.enableVoice && (
+                                <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                                  <Mic className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Send Button */}
+                            <button
+                              onClick={handleSendMessage}
+                              className="p-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+                              style={{
+                                backgroundColor: config.appearance.primaryColor,
+                                borderRadius: `${config.appearance.borderRadius}px`,
+                              }}
+                            >
+                              <Send className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {config.behavior.showBranding && (
+                            <div className="text-xs text-gray-500 mt-2 text-center">
+                              <span>Powered by </span>
+                              <span
+                                className="font-semibold"
+                                style={{
+                                  color: config.appearance.primaryColor,
+                                }}
+                              >
+                                Axient
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -660,20 +809,20 @@ const WidgetGenerator = () => {
           {/* Widget Stats */}
           <Card>
             <CardHeader>
-              <CardTitle>Widget Performance</CardTitle>
+              <CardTitle className="text-lg">Performance</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 grid-cols-2">
                 <div className="text-center">
-                  <div className="text-2xl font-bold">1,247</div>
-                  <div className="text-sm text-muted-foreground">
-                    Total Conversations
+                  <div className="text-xl font-bold">1,247</div>
+                  <div className="text-xs text-muted-foreground">
+                    Conversations
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold">94%</div>
-                  <div className="text-sm text-muted-foreground">
-                    Satisfaction Rate
+                  <div className="text-xl font-bold">94%</div>
+                  <div className="text-xs text-muted-foreground">
+                    Satisfaction
                   </div>
                 </div>
               </div>

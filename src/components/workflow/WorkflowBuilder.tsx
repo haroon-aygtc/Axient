@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,7 @@ interface AgentModule {
     | "tool"
     | "workflow"
     | "memory"
+    | "follow"
     | "formatter"
     | "guardrail"
     | "llm";
@@ -107,6 +110,7 @@ const WorkflowBuilder = () => {
     { type: "tool", label: "Tool Agent", color: "bg-yellow-500" },
     { type: "workflow", label: "Workflow Agent", color: "bg-purple-500" },
     { type: "memory", label: "Memory Agent", color: "bg-pink-500" },
+    { type: "follow", label: "Follow Agent", color: "bg-indigo-500" },
     { type: "formatter", label: "Formatter Agent", color: "bg-orange-500" },
     { type: "guardrail", label: "Guardrail Agent", color: "bg-red-500" },
     { type: "llm", label: "LLM Agent", color: "bg-cyan-500" },
@@ -798,6 +802,72 @@ const WorkflowBuilder = () => {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </>
+          );
+
+        case "follow":
+          return (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="followUpType">Follow-up Type</Label>
+                <Select
+                  value={selectedModule.config.followUpType || "automatic"}
+                  onValueChange={(value) =>
+                    handleUpdateModuleConfig("followUpType", value)
+                  }
+                >
+                  <SelectTrigger id="followUpType">
+                    <SelectValue placeholder="Select follow-up type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="automatic">Automatic</SelectItem>
+                    <SelectItem value="conditional">Conditional</SelectItem>
+                    <SelectItem value="manual">Manual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="followUpDelay">Follow-up Delay (minutes)</Label>
+                <Input
+                  id="followUpDelay"
+                  type="number"
+                  min="0"
+                  max="1440"
+                  value={selectedModule.config.followUpDelay || 5}
+                  onChange={(e) =>
+                    handleUpdateModuleConfig(
+                      "followUpDelay",
+                      parseInt(e.target.value),
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxFollowUps">Max Follow-ups</Label>
+                <Input
+                  id="maxFollowUps"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={selectedModule.config.maxFollowUps || 3}
+                  onChange={(e) =>
+                    handleUpdateModuleConfig(
+                      "maxFollowUps",
+                      parseInt(e.target.value),
+                    )
+                  }
+                />
+              </div>
+              <div className="flex items-center space-x-2 py-2">
+                <Switch
+                  id="contextAware"
+                  checked={selectedModule.config.contextAware || false}
+                  onCheckedChange={(checked) =>
+                    handleUpdateModuleConfig("contextAware", checked)
+                  }
+                />
+                <Label htmlFor="contextAware">Context Aware</Label>
               </div>
             </>
           );

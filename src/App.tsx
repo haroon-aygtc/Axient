@@ -5,6 +5,12 @@ import AIProviders from "./components/providers/AIProviders";
 import KnowledgeBase from "./components/knowledge/KnowledgeBase";
 import WorkflowBuilder from "./components/workflow/WorkflowBuilder";
 import WidgetGenerator from "./components/widgets/WidgetGenerator";
+import ExternalAPIs from "./components/apis/ExternalAPIs";
+import PromptTemplates from "./components/prompts/PromptTemplates";
+import Analytics from "./components/analytics/Analytics";
+import UsersRoles from "./components/users/UsersRoles";
+import Billing from "./components/billing/Billing";
+import Settings from "./components/settings/Settings";
 import DashboardLayout from "./components/layout/DashboardLayout";
 import routes from "tempo-routes";
 
@@ -50,6 +56,54 @@ function App() {
             element={
               <DashboardLayout>
                 <WidgetGenerator />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/apis"
+            element={
+              <DashboardLayout>
+                <ExternalAPIs />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/prompts"
+            element={
+              <DashboardLayout>
+                <PromptTemplates />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <DashboardLayout>
+                <Analytics />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <DashboardLayout>
+                <UsersRoles />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/billing"
+            element={
+              <DashboardLayout>
+                <Billing />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <DashboardLayout>
+                <Settings />
               </DashboardLayout>
             }
           />
