@@ -169,7 +169,7 @@ const WidgetGenerator = () => {
     setConfig((prev) => ({
       ...prev,
       [section]: {
-        ...prev[section],
+        ...(prev[section] as Record<string, any>),
         [key]: value,
       },
     }));
@@ -197,13 +197,25 @@ const WidgetGenerator = () => {
   };
 
   return (
-    <div className="bg-background min-h-screen">
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <MessageSquare className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Widget Generator</h1>
+        </div>
+        <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+          <Download className="h-4 w-4 mr-2" />
+          Export Widget
+        </Button>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-[1fr,400px]">
         {/* Configuration Panel */}
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">Widget Generator</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-3xl font-bold text-[#003135] dark:text-white">Widget Generator</h1>
+            <p className="text-[#024950] dark:text-[#AFDDE5] mt-1">
               Create and customize AI chat widgets for your website
             </p>
           </div>
@@ -595,13 +607,12 @@ const WidgetGenerator = () => {
             </CardHeader>
             <CardContent className="p-4">
               <div
-                className={`relative bg-gray-50 rounded-lg overflow-hidden ${
-                  previewDevice === "mobile"
-                    ? "w-[320px] h-[568px] mx-auto"
-                    : previewDevice === "tablet"
-                      ? "w-full max-w-[400px] h-[500px] mx-auto"
-                      : "w-full h-[500px]"
-                }`}
+                className={`relative bg-gray-50 rounded-lg overflow-hidden ${previewDevice === "mobile"
+                  ? "w-[320px] h-[568px] mx-auto"
+                  : previewDevice === "tablet"
+                    ? "w-full max-w-[400px] h-[500px] mx-auto"
+                    : "w-full h-[500px]"
+                  }`}
               >
                 <div className="p-4 h-full">
                   {/* Mock website content */}
@@ -613,27 +624,25 @@ const WidgetGenerator = () => {
 
                   {/* Widget Preview */}
                   <div
-                    className={`absolute ${
-                      config.appearance.position === "bottom-right"
-                        ? "bottom-4 right-4"
-                        : config.appearance.position === "bottom-left"
-                          ? "bottom-4 left-4"
-                          : config.appearance.position === "top-right"
-                            ? "top-4 right-4"
-                            : "top-4 left-4"
-                    }`}
+                    className={`absolute ${config.appearance.position === "bottom-right"
+                      ? "bottom-4 right-4"
+                      : config.appearance.position === "bottom-left"
+                        ? "bottom-4 left-4"
+                        : config.appearance.position === "top-right"
+                          ? "top-4 right-4"
+                          : "top-4 left-4"
+                      }`}
                   >
                     {/* Chat Widget Button (when closed) */}
                     {!isWidgetOpen && (
                       <button
                         onClick={() => setIsWidgetOpen(true)}
-                        className={`rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 ${
-                          config.appearance.size === "small"
-                            ? "w-12 h-12"
-                            : config.appearance.size === "large"
-                              ? "w-16 h-16"
-                              : "w-14 h-14"
-                        }`}
+                        className={`rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-200 ${config.appearance.size === "small"
+                          ? "w-12 h-12"
+                          : config.appearance.size === "large"
+                            ? "w-16 h-16"
+                            : "w-14 h-14"
+                          }`}
                         style={{
                           backgroundColor: config.appearance.primaryColor,
                           borderRadius: `${config.appearance.borderRadius}px`,
@@ -646,21 +655,19 @@ const WidgetGenerator = () => {
                     {/* Chat Widget (when open) */}
                     {isWidgetOpen && (
                       <div
-                        className={`bg-white border shadow-lg overflow-hidden transition-all duration-200 ${
-                          config.appearance.size === "small"
-                            ? "w-64"
-                            : config.appearance.size === "large"
-                              ? "w-80"
-                              : "w-72"
-                        } ${
-                          isWidgetMinimized
+                        className={`bg-white border shadow-lg overflow-hidden transition-all duration-200 ${config.appearance.size === "small"
+                          ? "w-64"
+                          : config.appearance.size === "large"
+                            ? "w-80"
+                            : "w-72"
+                          } ${isWidgetMinimized
                             ? "h-12"
                             : config.appearance.size === "small"
                               ? "h-80"
                               : config.appearance.size === "large"
                                 ? "h-96"
                                 : "h-[400px]"
-                        }`}
+                          }`}
                         style={{
                           borderRadius: `${config.appearance.borderRadius}px`,
                           fontFamily: config.appearance.fontFamily,
@@ -676,7 +683,7 @@ const WidgetGenerator = () => {
                           }}
                         >
                           <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <div className="w-2 h-2 bg-[#0FA4AF] rounded-full"></div>
                             <span className="text-sm font-medium">
                               AI Assistant
                             </span>
@@ -692,7 +699,7 @@ const WidgetGenerator = () => {
                             </button>
                             <button
                               onClick={() => setIsWidgetOpen(false)}
-                              className="w-6 h-6 bg-white/20 hover:bg-red-500/80 rounded flex items-center justify-center transition-colors"
+                              className="w-6 h-6 bg-white/20 hover:bg-[#964734]/80 rounded flex items-center justify-center transition-colors"
                             >
                               <X className="w-3 h-3" />
                             </button>
@@ -782,7 +789,7 @@ const WidgetGenerator = () => {
                                     setUserMessage(e.target.value)
                                   }
                                   onKeyDown={handleKeyPress}
-                                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:border-blue-500 focus:outline-none transition-colors pr-10"
+                                  className="w-full px-3 py-2 border border-[#0FA4AF]/30 rounded-lg text-sm bg-white focus:border-[#0FA4AF] focus:outline-none transition-colors pr-10"
                                   style={{
                                     borderRadius: `${config.appearance.borderRadius}px`,
                                     fontFamily: config.appearance.fontFamily,
@@ -792,7 +799,7 @@ const WidgetGenerator = () => {
 
                                 {/* Voice Input Button */}
                                 {config.behavior.enableVoice && (
-                                  <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                                  <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-[#024950]/60 hover:text-[#024950] transition-colors">
                                     <Mic className="w-4 h-4" />
                                   </button>
                                 )}

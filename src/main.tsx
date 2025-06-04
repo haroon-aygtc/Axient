@@ -6,8 +6,8 @@ import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { Toaster } from "@/components/ui/toaster";
 
-import { TempoDevtools } from "tempo-devtools";
-TempoDevtools.init();
+// import { TempoDevtools } from "tempo-devtools";
+// TempoDevtools.init();
 
 const basename = import.meta.env.BASE_URL;
 

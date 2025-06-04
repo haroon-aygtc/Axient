@@ -45,11 +45,11 @@ interface PromptTemplate {
   name: string;
   description: string;
   category:
-    | "customer-service"
-    | "technical-support"
-    | "sales"
-    | "general"
-    | "custom";
+  | "customer-service"
+  | "technical-support"
+  | "sales"
+  | "general"
+  | "custom";
   template: string;
   variables: string[];
   usage: number;
@@ -260,11 +260,11 @@ Answer:`,
 
   const getCategoryBadge = (category: PromptTemplate["category"]) => {
     const colors = {
-      "customer-service": "bg-blue-100 text-blue-800",
-      "technical-support": "bg-green-100 text-green-800",
-      sales: "bg-purple-100 text-purple-800",
-      general: "bg-gray-100 text-gray-800",
-      custom: "bg-orange-100 text-orange-800",
+      "customer-service": "bg-[#0FA4AF]/20 text-[#024950] border-[#0FA4AF]/30",
+      "technical-support": "bg-[#024950]/20 text-[#024950] border-[#024950]/30",
+      sales: "bg-[#964734]/20 text-[#964734] border-[#964734]/30",
+      general: "bg-[#AFDDE5]/50 text-[#003135] border-[#AFDDE5]",
+      custom: "bg-[#0FA4AF]/30 text-[#003135] border-[#0FA4AF]/50",
     };
     return (
       <Badge className={colors[category]}>
@@ -278,130 +278,128 @@ Answer:`,
   const totalUsage = templates.reduce((sum, t) => sum + t.usage, 0);
 
   return (
-    <div className="bg-background">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Prompt Templates</h1>
-            <p className="text-muted-foreground mt-1">
-              Create and manage reusable prompt templates for your AI workflows
-            </p>
-          </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Template
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create Prompt Template</DialogTitle>
-                <DialogDescription>
-                  Create a new reusable prompt template for your AI workflows
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="template-name">Template Name</Label>
-                    <Input
-                      id="template-name"
-                      value={newTemplate.name}
-                      onChange={(e) =>
-                        setNewTemplate({ ...newTemplate, name: e.target.value })
-                      }
-                      placeholder="Enter template name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="template-category">Category</Label>
-                    <Select
-                      value={newTemplate.category}
-                      onValueChange={(value) =>
-                        setNewTemplate({
-                          ...newTemplate,
-                          category: value as PromptTemplate["category"],
-                        })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="customer-service">
-                          Customer Service
-                        </SelectItem>
-                        <SelectItem value="technical-support">
-                          Technical Support
-                        </SelectItem>
-                        <SelectItem value="sales">Sales</SelectItem>
-                        <SelectItem value="general">General</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <FileText className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Prompt Templates</h1>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Template
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create Prompt Template</DialogTitle>
+              <DialogDescription>
+                Create a new reusable prompt template for your AI workflows
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="template-name">Template Name</Label>
+                  <Input
+                    id="template-name"
+                    value={newTemplate.name}
+                    onChange={(e) =>
+                      setNewTemplate({ ...newTemplate, name: e.target.value })
+                    }
+                    placeholder="Enter template name"
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="template-description">Description</Label>
-                  <Input
-                    id="template-description"
-                    value={newTemplate.description}
-                    onChange={(e) =>
+                  <Label htmlFor="template-category">Category</Label>
+                  <Select
+                    value={newTemplate.category}
+                    onValueChange={(value) =>
                       setNewTemplate({
                         ...newTemplate,
-                        description: e.target.value,
+                        category: value as PromptTemplate["category"],
                       })
                     }
-                    placeholder="Brief description of the template"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="template-content">Template Content</Label>
-                  <Textarea
-                    id="template-content"
-                    value={newTemplate.template}
-                    onChange={(e) =>
-                      setNewTemplate({
-                        ...newTemplate,
-                        template: e.target.value,
-                      })
-                    }
-                    placeholder="Enter your prompt template here. Use {variable_name} for variables."
-                    rows={12}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use curly braces to define variables: {"{"}variable_name
-                    {"}"}. Variables will be automatically detected.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="template-tags">Tags</Label>
-                  <Input
-                    id="template-tags"
-                    value={newTemplate.tags}
-                    onChange={(e) =>
-                      setNewTemplate({ ...newTemplate, tags: e.target.value })
-                    }
-                    placeholder="Enter tags separated by commas"
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAddDialogOpen(false)}
                   >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddTemplate}>Create Template</Button>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="customer-service">
+                        Customer Service
+                      </SelectItem>
+                      <SelectItem value="technical-support">
+                        Technical Support
+                      </SelectItem>
+                      <SelectItem value="sales">Sales</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-description">Description</Label>
+                <Input
+                  id="template-description"
+                  value={newTemplate.description}
+                  onChange={(e) =>
+                    setNewTemplate({
+                      ...newTemplate,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Brief description of the template"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-content">Template Content</Label>
+                <Textarea
+                  id="template-content"
+                  value={newTemplate.template}
+                  onChange={(e) =>
+                    setNewTemplate({
+                      ...newTemplate,
+                      template: e.target.value,
+                    })
+                  }
+                  placeholder="Enter your prompt template here. Use {variable_name} for variables."
+                  rows={12}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use curly braces to define variables: {"{"}variable_name
+                  {"}"}. Variables will be automatically detected.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-tags">Tags</Label>
+                <Input
+                  id="template-tags"
+                  value={newTemplate.tags}
+                  onChange={(e) =>
+                    setNewTemplate({ ...newTemplate, tags: e.target.value })
+                  }
+                  placeholder="Enter tags separated by commas"
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddTemplate}>Create Template</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
+      <div className="space-y-6">
         {/* Stats Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -664,7 +662,7 @@ Answer:`,
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+    </div >
   );
 };
 

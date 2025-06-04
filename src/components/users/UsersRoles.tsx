@@ -185,28 +185,31 @@ const UsersRoles = () => {
   const getStatusBadge = (status: User["status"]) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
+        return <Badge className="bg-[#0FA4AF]/20 text-[#024950] border-[#0FA4AF]/30">Active</Badge>;
       case "inactive":
-        return <Badge variant="secondary">Inactive</Badge>;
+        return <Badge className="bg-[#024950]/20 text-[#024950] border-[#024950]/30">Inactive</Badge>;
       case "pending":
-        return <Badge variant="outline">Pending</Badge>;
+        return <Badge className="bg-[#964734]/20 text-[#964734] border-[#964734]/30">Pending</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }
   };
 
   return (
-    <div className="bg-background">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Users & Roles</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage user access and permissions for your AI platform
-            </p>
-          </div>
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <UserPlus className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Users & Roles</h1>
         </div>
+        <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+          <UserPlus className="h-4 w-4 mr-2" />
+          Invite User
+        </Button>
+      </div>
+
+      <div className="space-y-6">
 
         {/* Main Content */}
         <Tabs defaultValue="users" className="space-y-6">
@@ -553,7 +556,7 @@ const UsersRoles = () => {
                           {roles.map((role) => (
                             <TableCell key={role.id} className="text-center">
                               {role.permissions.includes(permission) ||
-                              role.permissions.includes("all") ? (
+                                role.permissions.includes("all") ? (
                                 <Badge className="bg-green-100 text-green-800">
                                   ✓
                                 </Badge>

@@ -28,7 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Settings, Check, X, AlertCircle } from "lucide-react";
+import { Plus, Settings, Check, X, AlertCircle, Bot, Sparkles, Zap, Star } from "lucide-react";
 
 interface AIProvider {
   id: string;
@@ -123,311 +123,349 @@ const AIProviders = () => {
   const getStatusIcon = (status: AIProvider["status"]) => {
     switch (status) {
       case "connected":
-        return <Check className="h-4 w-4 text-green-500" />;
+        return <Check className="h-4 w-4 text-[#0FA4AF]" />;
       case "error":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-[#964734]" />;
       default:
-        return <X className="h-4 w-4 text-gray-500" />;
+        return <X className="h-4 w-4 text-[#024950]" />;
     }
   };
 
   const getStatusBadge = (status: AIProvider["status"]) => {
     switch (status) {
       case "connected":
-        return <Badge className="bg-green-100 text-green-800">Connected</Badge>;
+        return <Badge className="bg-[#0FA4AF]/20 text-[#024950] border border-[#0FA4AF]/30">Connected</Badge>;
       case "error":
-        return <Badge variant="destructive">Error</Badge>;
+        return <Badge className="bg-[#964734]/20 text-[#964734] border border-[#964734]/30">Error</Badge>;
       default:
-        return <Badge variant="outline">Disconnected</Badge>;
+        return <Badge className="bg-[#AFDDE5]/30 text-[#003135] border border-[#024950]/30">Disconnected</Badge>;
     }
   };
 
   return (
-    <div className="bg-background">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">AI Providers</h1>
-            <p className="text-muted-foreground mt-1">
-              Configure and manage your AI model providers
-            </p>
-          </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Provider
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add AI Provider</DialogTitle>
-                <DialogDescription>
-                  Configure a new AI model provider for your workflows
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <Sparkles className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">AI Providers</h1>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Provider
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add AI Provider</DialogTitle>
+              <DialogDescription>
+                Configure a new AI model provider for your workflows
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="provider-name" className="text-[#024950] dark:text-[#AFDDE5] font-medium">Provider Name</Label>
+                <Input
+                  id="provider-name"
+                  value={newProvider.name}
+                  onChange={(e) =>
+                    setNewProvider({ ...newProvider, name: e.target.value })
+                  }
+                  placeholder="Enter provider name"
+                  className="border-[#0FA4AF]/30 dark:border-[#024950] focus:border-[#0FA4AF] dark:focus:border-[#0FA4AF]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="provider-type" className="text-[#024950] dark:text-[#AFDDE5] font-medium">Provider Type</Label>
+                <Select
+                  value={newProvider.type}
+                  onValueChange={(value) =>
+                    setNewProvider({
+                      ...newProvider,
+                      type: value as AIProvider["type"],
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="anthropic">Anthropic</SelectItem>
+                    <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="groq">Groq</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="api-key" className="text-[#024950] dark:text-[#AFDDE5] font-medium">API Key</Label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  value={newProvider.apiKey}
+                  onChange={(e) =>
+                    setNewProvider({ ...newProvider, apiKey: e.target.value })
+                  }
+                  placeholder="Enter API key"
+                  className="border-[#0FA4AF]/30 dark:border-[#024950] focus:border-[#0FA4AF] dark:focus:border-[#0FA4AF]"
+                />
+              </div>
+              {newProvider.type === "custom" && (
                 <div className="space-y-2">
-                  <Label htmlFor="provider-name">Provider Name</Label>
+                  <Label htmlFor="base-url" className="text-[#024950] dark:text-[#AFDDE5] font-medium">Base URL</Label>
                   <Input
-                    id="provider-name"
-                    value={newProvider.name}
+                    id="base-url"
+                    value={newProvider.baseUrl}
                     onChange={(e) =>
-                      setNewProvider({ ...newProvider, name: e.target.value })
-                    }
-                    placeholder="Enter provider name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="provider-type">Provider Type</Label>
-                  <Select
-                    value={newProvider.type}
-                    onValueChange={(value) =>
                       setNewProvider({
                         ...newProvider,
-                        type: value as AIProvider["type"],
+                        baseUrl: e.target.value,
                       })
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="openai">OpenAI</SelectItem>
-                      <SelectItem value="anthropic">Anthropic</SelectItem>
-                      <SelectItem value="google">Google</SelectItem>
-                      <SelectItem value="groq">Groq</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="api-key">API Key</Label>
-                  <Input
-                    id="api-key"
-                    type="password"
-                    value={newProvider.apiKey}
-                    onChange={(e) =>
-                      setNewProvider({ ...newProvider, apiKey: e.target.value })
-                    }
-                    placeholder="Enter API key"
+                    placeholder="https://api.example.com/v1"
+                    className="border-[#0FA4AF]/30 dark:border-[#024950] focus:border-[#0FA4AF] dark:focus:border-[#0FA4AF]"
                   />
                 </div>
-                {newProvider.type === "custom" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="base-url">Base URL</Label>
-                    <Input
-                      id="base-url"
-                      value={newProvider.baseUrl}
-                      onChange={(e) =>
-                        setNewProvider({
-                          ...newProvider,
-                          baseUrl: e.target.value,
-                        })
-                      }
-                      placeholder="https://api.example.com/v1"
-                    />
+              )}
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddDialogOpen(false)}
+                  className="bg-[#024950] hover:bg-[#0FA4AF] text-white"
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddProvider} className="bg-[#024950] hover:bg-[#0FA4AF] text-white">Add Provider</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Providers Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {providers.map((provider) => {
+          const getProviderGradient = (type: string) => {
+            switch (type) {
+              case "openai": return "from-[#003135] to-[#024950]";
+              case "anthropic": return "from-[#024950] to-[#0FA4AF]";
+              case "groq": return "from-[#0FA4AF] to-[#AFDDE5]";
+              case "google": return "from-[#024950] to-[#003135]";
+              default: return "from-[#003135] to-[#024950]";
+            }
+          };
+
+          const getProviderIcon = (type: string) => {
+            switch (type) {
+              case "openai": return <Bot className="h-6 w-6" />;
+              case "anthropic": return <Sparkles className="h-6 w-6" />;
+              case "groq": return <Zap className="h-6 w-6" />;
+              case "google": return <Star className="h-6 w-6" />;
+              default: return <Settings className="h-6 w-6" />;
+            }
+          };
+
+          return (
+            <Card key={provider.id} className="group bg-white dark:bg-[#003135] border border-[#0FA4AF]/20 dark:border-[#024950] shadow-lg hover:shadow-xl transition-all duration-300 hover:border-[#0FA4AF] dark:hover:border-[#0FA4AF] overflow-hidden">
+              {/* Provider Header */}
+              <div className={`h-32 bg-gradient-to-r ${getProviderGradient(provider.type)} relative overflow-hidden`}>
+                <div className="absolute inset-0 bg-black/10"></div>
+                <div className="relative p-6 h-full flex items-center justify-between">
+                  <div className="text-white">
+                    <h3 className="font-bold text-xl mb-1">{provider.name}</h3>
+                    <div className="flex items-center space-x-2">
+                      {getStatusIcon(provider.status)}
+                      {getStatusBadge(provider.status)}
+                    </div>
+                  </div>
+                  <div className="text-white/90">
+                    {getProviderIcon(provider.type)}
+                  </div>
+                </div>
+                {provider.isDefault && (
+                  <div className="absolute top-4 right-4">
+                    <Badge className="bg-[#964734] text-white border border-[#964734]">
+                      Default
+                    </Badge>
                   </div>
                 )}
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAddDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddProvider}>Add Provider</Button>
-                </div>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
 
-        {/* Providers Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {providers.map((provider) => (
-            <Card key={provider.id} className="bg-background">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {getStatusIcon(provider.status)}
-                    <CardTitle className="text-lg">{provider.name}</CardTitle>
-                    {provider.isDefault && (
-                      <Badge variant="secondary">Default</Badge>
-                    )}
+              {/* Provider Content */}
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-[#024950] dark:text-[#AFDDE5] mb-2">
+                      API Key
+                    </p>
+                    <p className="text-sm font-mono bg-[#AFDDE5]/30 dark:bg-[#024950]/50 p-2 rounded-lg text-[#003135] dark:text-[#AFDDE5]">
+                      {provider.apiKey}
+                    </p>
                   </div>
-                  <Button variant="ghost" size="icon">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </div>
-                <CardDescription>
-                  {provider.type.charAt(0).toUpperCase() +
-                    provider.type.slice(1)}{" "}
-                  Provider
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Status</span>
-                  {getStatusBadge(provider.status)}
-                </div>
 
-                <div>
-                  <span className="text-sm font-medium">Available Models</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {provider.models.length > 0 ? (
-                      provider.models.slice(0, 3).map((model) => (
-                        <Badge
-                          key={model}
-                          variant="outline"
-                          className="text-xs"
-                        >
+                  <div>
+                    <p className="text-sm font-medium text-[#024950] dark:text-[#AFDDE5] mb-2">
+                      Available Models ({provider.models.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {provider.models.slice(0, 2).map((model) => (
+                        <Badge key={model} variant="outline" className="text-xs border-[#0FA4AF]/30 text-[#024950] dark:text-[#AFDDE5] hover:bg-[#0FA4AF]/10">
                           {model}
                         </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        No models available
-                      </span>
-                    )}
-                    {provider.models.length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{provider.models.length - 3} more
-                      </Badge>
-                    )}
+                      ))}
+                      {provider.models.length > 2 && (
+                        <Badge variant="outline" className="text-xs border-[#964734]/30 text-[#964734] dark:text-[#AFDDE5] hover:bg-[#964734]/10">
+                          +{provider.models.length - 2} more
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <Separator />
-
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleTestConnection(provider.id)}
-                  >
-                    Test Connection
-                  </Button>
-                  {!provider.isDefault && (
+                  <div className="pt-4 flex justify-between items-center">
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTestConnection(provider.id)}
+                        disabled={provider.status === "connected"}
+                        className={provider.status === "connected"
+                          ? "bg-[#0FA4AF]/20 text-[#024950] border-[#0FA4AF]/30 cursor-not-allowed"
+                          : "border-[#024950]/30 text-[#024950] hover:bg-[#024950] hover:text-white dark:text-[#AFDDE5] dark:border-[#024950] dark:hover:bg-[#0FA4AF]"
+                        }
+                      >
+                        {provider.status === "connected" ? "Connected" : "Test"}
+                      </Button>
+                      {!provider.isDefault && provider.status === "connected" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSetDefault(provider.id)}
+                          className="bg-[#964734]/20 text-[#964734] border-[#964734]/30 hover:bg-[#964734] hover:text-white dark:hover:bg-[#964734]"
+                        >
+                          Set Default
+                        </Button>
+                      )}
+                    </div>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => handleSetDefault(provider.id)}
+                      className="hover:bg-[#0FA4AF]/10 dark:hover:bg-[#024950]/50 text-[#024950] dark:text-[#AFDDE5]"
                     >
-                      Set Default
+                      <Settings className="h-4 w-4" />
                     </Button>
-                  )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-
-        {/* Configuration Tabs */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Global Configuration</CardTitle>
-            <CardDescription>
-              Configure global settings for all AI providers
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="general">
-              <TabsList>
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="limits">Rate Limits</TabsTrigger>
-                <TabsTrigger value="fallback">Fallback</TabsTrigger>
-              </TabsList>
-              <TabsContent value="general" className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="default-temperature">
-                      Default Temperature
-                    </Label>
-                    <Input
-                      id="default-temperature"
-                      type="number"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      defaultValue="0.7"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="default-max-tokens">
-                      Default Max Tokens
-                    </Label>
-                    <Input
-                      id="default-max-tokens"
-                      type="number"
-                      min="1"
-                      max="8192"
-                      defaultValue="1024"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="auto-retry" />
-                  <Label htmlFor="auto-retry">
-                    Enable automatic retry on failures
-                  </Label>
-                </div>
-              </TabsContent>
-              <TabsContent value="limits" className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="requests-per-minute">
-                      Requests per Minute
-                    </Label>
-                    <Input
-                      id="requests-per-minute"
-                      type="number"
-                      min="1"
-                      defaultValue="60"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="tokens-per-minute">Tokens per Minute</Label>
-                    <Input
-                      id="tokens-per-minute"
-                      type="number"
-                      min="1000"
-                      defaultValue="40000"
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="fallback" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fallback-provider">Fallback Provider</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select fallback provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {providers
-                        .filter((p) => p.status === "connected")
-                        .map((provider) => (
-                          <SelectItem key={provider.id} value={provider.id}>
-                            {provider.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch id="enable-fallback" />
-                  <Label htmlFor="enable-fallback">
-                    Enable automatic fallback
-                  </Label>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+          );
+        })}
       </div>
+
+      {/* Configuration Tabs */}
+      <Card className="bg-white dark:bg-[#003135] border border-[#0FA4AF]/20 dark:border-[#024950] shadow-lg mt-10">
+        <CardHeader className="border-b border-[#0FA4AF]/20 dark:border-[#024950] bg-[#964734]/5 dark:bg-[#964734]/10">
+          <CardTitle className="text-2xl font-bold text-[#003135] dark:text-white">Global Configuration</CardTitle>
+          <CardDescription className="text-[#024950] dark:text-[#AFDDE5]">
+            Configure global settings for all AI providers
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="general">
+            <TabsList className="bg-[#AFDDE5]/30 dark:bg-[#024950]/50">
+              <TabsTrigger value="general" className="data-[state=active]:bg-[#024950] data-[state=active]:text-white text-[#003135] dark:text-[#AFDDE5]">General</TabsTrigger>
+              <TabsTrigger value="limits" className="data-[state=active]:bg-[#964734] data-[state=active]:text-white text-[#003135] dark:text-[#AFDDE5]">Rate Limits</TabsTrigger>
+              <TabsTrigger value="fallback" className="data-[state=active]:bg-[#0FA4AF] data-[state=active]:text-white text-[#003135] dark:text-[#AFDDE5]">Fallback</TabsTrigger>
+            </TabsList>
+            <TabsContent value="general" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="default-temperature">
+                    Default Temperature
+                  </Label>
+                  <Input
+                    id="default-temperature"
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    defaultValue="0.7"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="default-max-tokens">
+                    Default Max Tokens
+                  </Label>
+                  <Input
+                    id="default-max-tokens"
+                    type="number"
+                    min="1"
+                    max="8192"
+                    defaultValue="1024"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch id="auto-retry" />
+                <Label htmlFor="auto-retry">
+                  Enable automatic retry on failures
+                </Label>
+              </div>
+            </TabsContent>
+            <TabsContent value="limits" className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="requests-per-minute">
+                    Requests per Minute
+                  </Label>
+                  <Input
+                    id="requests-per-minute"
+                    type="number"
+                    min="1"
+                    defaultValue="60"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tokens-per-minute">Tokens per Minute</Label>
+                  <Input
+                    id="tokens-per-minute"
+                    type="number"
+                    min="1000"
+                    defaultValue="40000"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="fallback" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="fallback-provider">Fallback Provider</Label>
+                <Select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select fallback provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers
+                      .filter((p) => p.status === "connected")
+                      .map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch id="enable-fallback" />
+                <Label htmlFor="enable-fallback">
+                  Enable automatic fallback
+                </Label>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };

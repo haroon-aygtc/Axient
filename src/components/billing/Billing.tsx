@@ -191,17 +191,20 @@ const Billing = () => {
   };
 
   return (
-    <div className="bg-background">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Billing & Subscription</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your subscription and billing information
-            </p>
-          </div>
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <CreditCard className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Billing & Subscription</h1>
         </div>
+        <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+          <Download className="h-4 w-4 mr-2" />
+          Download Invoice
+        </Button>
+      </div>
+
+      <div className="space-y-6">
 
         {/* Current Plan Overview */}
         <Card>
@@ -349,9 +352,8 @@ const Billing = () => {
                   {plans.map((plan) => (
                     <Card
                       key={plan.id}
-                      className={`relative ${
-                        plan.popular ? "border-primary shadow-lg" : ""
-                      }`}
+                      className={`relative ${plan.popular ? "border-primary shadow-lg" : ""
+                        }`}
                     >
                       {plan.popular && (
                         <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">

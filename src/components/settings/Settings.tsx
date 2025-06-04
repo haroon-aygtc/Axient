@@ -124,17 +124,20 @@ const Settings = () => {
   };
 
   return (
-    <div className="bg-background">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Settings</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your account and application preferences
-            </p>
-          </div>
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <SettingsIcon className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Settings</h1>
         </div>
+        <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+          <Download className="h-4 w-4 mr-2" />
+          Export Settings
+        </Button>
+      </div>
+
+      <div className="space-y-6">
 
         {/* Main Content */}
         <Tabs defaultValue="profile" className="space-y-6">

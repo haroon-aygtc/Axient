@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { useRoutes, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import Home from "./components/home";
 import AIProviders from "./components/providers/AIProviders";
 import KnowledgeBase from "./components/knowledge/KnowledgeBase";
@@ -12,7 +12,7 @@ import UsersRoles from "./components/users/UsersRoles";
 import Billing from "./components/billing/Billing";
 import Settings from "./components/settings/Settings";
 import DashboardLayout from "./components/layout/DashboardLayout";
-import routes from "tempo-routes";
+// import routes from "tempo-routes";
 
 function App() {
   return (
@@ -46,12 +46,17 @@ function App() {
           <Route
             path="/workflows"
             element={
+              <WorkflowBuilder />
+            }
+          />
+          <Route
+            path="/widgets"
+            element={
               <DashboardLayout>
-                <WorkflowBuilder />
+                <WidgetGenerator />
               </DashboardLayout>
             }
           />
-          <Route path="/widgets" element={<WidgetGenerator />} />
           <Route
             path="/apis"
             element={
@@ -101,7 +106,7 @@ function App() {
             }
           />
         </Routes>
-        {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)}
+        {/* {import.meta.env.VITE_TEMPO === "true" && useRoutes(routes)} */}
       </>
     </Suspense>
   );

@@ -1,11 +1,41 @@
-import React, { useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import ReactFlow, {
+  Node,
+  Edge,
+  addEdge,
+  Connection,
+  useNodesState,
+  useEdgesState,
+  Controls,
+  Background,
+  MiniMap,
+  ReactFlowProvider,
+  ReactFlowInstance,
+  NodeTypes,
+} from "reactflow";
+import "reactflow/dist/style.css";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -13,982 +43,1354 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Plus,
-  Save,
   Play,
-  Settings,
-  X,
+  Save,
   ArrowRight,
-  Zap,
-  Brain,
-  Database,
-  Workflow,
   MessageSquare,
-  Shield,
+  Brain,
   Bot,
-  FileText,
+  Database,
+  Zap,
+  Shield,
   GitBranch,
   Clock,
-  ChevronDown,
-  ChevronRight,
-  MoreVertical,
-  Copy,
+  Mail,
+  BarChart3,
+  Users,
+  FileText,
+  Workflow,
+  Plus,
+  ArrowLeft,
+  Settings,
+  ZoomIn,
+  ZoomOut,
   Trash2,
-  Edit3,
-  Home,
+  Copy,
+  Edit,
+  Globe,
+  Webhook,
+  Calendar,
+  MousePointer,
+  Filter,
+  Repeat,
+  Timer,
+  Send,
+  CheckCircle,
+  AlertCircle,
+  X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 
-interface WorkflowStep {
-  id: string;
-  type: "trigger" | "action" | "condition" | "agent";
+// Node type definitions for drag and drop
+interface NodeData {
+  label: string;
+  description?: string;
+  icon?: React.ReactNode;
   category: string;
+  config?: Record<string, any>;
+  isConfigured?: boolean;
+}
+
+interface DraggableNodeType {
+  id: string;
+  type: "trigger" | "action" | "logic" | "output";
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  category: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  defaultConfig?: Record<string, any>;
+}
+
+interface FlowNode {
+  id: string;
+  type: "start" | "process" | "decision" | "end";
   title: string;
   description: string;
   icon: React.ReactNode;
-  color: string;
-  config: Record<string, any>;
-  position: { x: number; y: number };
+  category: string;
   connections: string[];
 }
 
-interface WorkflowData {
+interface WorkflowTemplate {
   id: string;
   name: string;
   description: string;
-  steps: WorkflowStep[];
-  connections: Array<{ from: string; to: string }>;
-  status: "draft" | "active" | "paused";
-  lastModified: Date;
+  category: string;
+  estimatedTime: string;
+  complexity: "Simple" | "Medium" | "Advanced";
+  nodes: FlowNode[];
 }
 
+interface WorkflowState {
+  name: string;
+  description: string;
+  isActive: boolean;
+  nodes: Node[];
+  edges: Edge[];
+}
+
+// Custom Node Components
+const CustomNode = ({ data, selected }: { data: NodeData; selected: boolean }) => {
+  return (
+    <div
+      className={`px-4 py-3 shadow-lg rounded-xl border-2 bg-white dark:bg-[#003135] min-w-[160px] transition-all duration-300 ${selected
+        ? "border-[#964734] shadow-[#964734]/30 scale-105"
+        : "border-[#0FA4AF]/30 hover:border-[#964734]/50 hover:shadow-xl"
+        }`}
+    >
+      <div className="flex items-center space-x-3">
+        <div className={`p-2 rounded-lg ${data.category === "trigger" ? "bg-[#0FA4AF]/20" :
+          data.category === "action" ? "bg-[#024950]/20" :
+            data.category === "logic" ? "bg-[#964734]/20" : "bg-[#AFDDE5]/20"}`}>
+          {data.icon}
+        </div>
+        <div className="flex-1">
+          <div className="font-semibold text-sm text-[#003135] dark:text-white">
+            {data.label}
+          </div>
+          {data.description && (
+            <div className="text-xs text-[#024950] dark:text-[#AFDDE5] mt-1">
+              {data.description}
+            </div>
+          )}
+        </div>
+        {data.isConfigured && (
+          <CheckCircle className="h-4 w-4 text-[#0FA4AF]" />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Draggable Node Component
+const DraggableNode = ({ nodeType, onDragStart }: {
+  nodeType: DraggableNodeType;
+  onDragStart: (nodeType: DraggableNodeType) => void;
+}) => {
+  const handleDragStart = (event: React.DragEvent) => {
+    // Create a serializable version without the icon
+    const serializableNodeType = {
+      ...nodeType,
+      icon: undefined, // Remove the React component
+    };
+    event.dataTransfer.setData("application/reactflow", JSON.stringify(serializableNodeType));
+    event.dataTransfer.effectAllowed = "move";
+    onDragStart(nodeType);
+  };
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      className={`p-3 border rounded-xl cursor-grab hover:cursor-grabbing transition-all duration-300 hover:shadow-lg hover:scale-105 ${nodeType.borderColor} ${nodeType.bgColor} group`}
+    >
+      <div className="flex items-center space-x-3">
+        <div className={`p-2 rounded-lg ${nodeType.color} group-hover:scale-110 transition-transform duration-300`}>
+          {nodeType.icon}
+        </div>
+        <div className="flex-1">
+          <div className="font-medium text-sm text-[#003135] dark:text-white">
+            {nodeType.label}
+          </div>
+          <div className="text-xs text-[#024950] dark:text-[#AFDDE5] mt-1">
+            {nodeType.description}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const WorkflowBuilder = () => {
-  const [workflow, setWorkflow] = useState<WorkflowData>({
-    id: "1",
-    name: "Customer Support Workflow",
-    description: "Automated customer support with AI agents",
-    steps: [
-      {
-        id: "trigger-1",
-        type: "trigger",
-        category: "Message",
-        title: "New Customer Message",
-        description: "Triggers when a customer sends a message",
-        icon: <MessageSquare className="h-4 w-4" />,
-        color: "bg-blue-500",
-        config: { source: "widget", filters: [] },
-        position: { x: 100, y: 100 },
-        connections: ["agent-1"],
-      },
-      {
-        id: "agent-1",
-        type: "agent",
-        category: "Intent",
-        title: "Intent Recognition",
-        description: "Analyzes customer intent from message",
-        icon: <Brain className="h-4 w-4" />,
-        color: "bg-purple-500",
-        config: { model: "intent-classifier", threshold: 0.8 },
-        position: { x: 350, y: 100 },
-        connections: ["condition-1"],
-      },
-      {
-        id: "condition-1",
-        type: "condition",
-        category: "Logic",
-        title: "Intent Check",
-        description: "Routes based on detected intent",
-        icon: <GitBranch className="h-4 w-4" />,
-        color: "bg-orange-500",
-        config: {
-          conditions: [
-            { field: "intent", operator: "equals", value: "support" },
-          ],
-        },
-        position: { x: 600, y: 100 },
-        connections: ["agent-2", "agent-3"],
-      },
-      {
-        id: "agent-2",
-        type: "agent",
-        category: "Retriever",
-        title: "Knowledge Search",
-        description: "Searches knowledge base for relevant information",
-        icon: <Database className="h-4 w-4" />,
-        color: "bg-green-500",
-        config: { knowledgeBase: "support-docs", topK: 5 },
-        position: { x: 850, y: 50 },
-        connections: ["agent-4"],
-      },
-      {
-        id: "agent-3",
-        type: "action",
-        category: "Escalation",
-        title: "Human Handoff",
-        description: "Escalates to human agent",
-        icon: <Zap className="h-4 w-4" />,
-        color: "bg-red-500",
-        config: { department: "support", priority: "normal" },
-        position: { x: 850, y: 150 },
-        connections: [],
-      },
-      {
-        id: "agent-4",
-        type: "agent",
-        category: "LLM",
-        title: "Response Generation",
-        description: "Generates helpful response using AI",
-        icon: <Bot className="h-4 w-4" />,
-        color: "bg-cyan-500",
-        config: { provider: "openai", model: "gpt-4", temperature: 0.7 },
-        position: { x: 1100, y: 50 },
-        connections: [],
-      },
-    ],
-    connections: [
-      { from: "trigger-1", to: "agent-1" },
-      { from: "agent-1", to: "condition-1" },
-      { from: "condition-1", to: "agent-2" },
-      { from: "condition-1", to: "agent-3" },
-      { from: "agent-2", to: "agent-4" },
-    ],
-    status: "draft",
-    lastModified: new Date(),
+  const [currentView, setCurrentView] = useState<"templates" | "preview" | "builder">("templates");
+  const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
+
+  // Workflow state
+  const [workflow, setWorkflow] = useState<WorkflowState>({
+    name: "New Workflow",
+    description: "",
+    isActive: false,
+    nodes: [],
+    edges: [],
   });
 
-  const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
-  const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
-  const [draggedStep, setDraggedStep] = useState<string | null>(null);
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [draggedNodeType, setDraggedNodeType] = useState<DraggableNodeType | null>(null);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
-  const stepTemplates = [
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  // Available node types for dragging
+  const nodeTypes: DraggableNodeType[] = [
+    // Trigger nodes
     {
-      category: "Triggers",
-      items: [
-        {
-          type: "trigger",
-          category: "Message",
-          title: "New Message",
-          description: "When a new message is received",
-          icon: <MessageSquare className="h-4 w-4" />,
-          color: "bg-blue-500",
-        },
-        {
-          type: "trigger",
-          category: "Schedule",
-          title: "Time Schedule",
-          description: "Runs at specific times",
-          icon: <Clock className="h-4 w-4" />,
-          color: "bg-indigo-500",
-        },
-        {
-          type: "trigger",
-          category: "Webhook",
-          title: "API Webhook",
-          description: "External API triggers",
-          icon: <Zap className="h-4 w-4" />,
-          color: "bg-yellow-500",
-        },
-      ],
+      id: "webhook",
+      type: "trigger",
+      label: "Webhook",
+      description: "HTTP webhook trigger",
+      icon: <Webhook className="h-4 w-4 text-white" />,
+      category: "trigger",
+      color: "bg-[#0FA4AF]",
+      bgColor: "bg-[#0FA4AF]/10 hover:bg-[#0FA4AF]/20",
+      borderColor: "border-[#0FA4AF]/30 hover:border-[#0FA4AF]",
+      defaultConfig: { method: "POST", path: "/webhook" },
     },
     {
-      category: "AI Agents",
-      items: [
-        {
-          type: "agent",
-          category: "Intent",
-          title: "Intent Recognition",
-          description: "Analyze user intent",
-          icon: <Brain className="h-4 w-4" />,
-          color: "bg-purple-500",
-        },
-        {
-          type: "agent",
-          category: "Retriever",
-          title: "Knowledge Search",
-          description: "Search knowledge base",
-          icon: <Database className="h-4 w-4" />,
-          color: "bg-green-500",
-        },
-        {
-          type: "agent",
-          category: "LLM",
-          title: "AI Response",
-          description: "Generate AI responses",
-          icon: <Bot className="h-4 w-4" />,
-          color: "bg-cyan-500",
-        },
-        {
-          type: "agent",
-          category: "Formatter",
-          title: "Format Response",
-          description: "Format and structure output",
-          icon: <FileText className="h-4 w-4" />,
-          color: "bg-orange-500",
-        },
-        {
-          type: "agent",
-          category: "Guardrail",
-          title: "Safety Check",
-          description: "Content safety validation",
-          icon: <Shield className="h-4 w-4" />,
-          color: "bg-red-500",
-        },
-      ],
+      id: "schedule",
+      type: "trigger",
+      label: "Schedule",
+      description: "Time-based trigger",
+      icon: <Calendar className="h-4 w-4 text-white" />,
+      category: "trigger",
+      color: "bg-[#0FA4AF]",
+      bgColor: "bg-[#0FA4AF]/10 hover:bg-[#0FA4AF]/20",
+      borderColor: "border-[#0FA4AF]/30 hover:border-[#0FA4AF]",
+      defaultConfig: { interval: "daily", time: "09:00" },
     },
     {
-      category: "Logic & Actions",
-      items: [
+      id: "manual",
+      type: "trigger",
+      label: "Manual",
+      description: "Manual trigger",
+      icon: <MousePointer className="h-4 w-4 text-white" />,
+      category: "trigger",
+      color: "bg-[#0FA4AF]",
+      bgColor: "bg-[#0FA4AF]/10 hover:bg-[#0FA4AF]/20",
+      borderColor: "border-[#0FA4AF]/30 hover:border-[#0FA4AF]",
+      defaultConfig: { requireConfirmation: true },
+    },
+    // Action nodes
+    {
+      id: "ai-chat",
+      type: "action",
+      label: "AI Chat",
+      description: "Process with AI",
+      icon: <Bot className="h-4 w-4 text-white" />,
+      category: "action",
+      color: "bg-[#024950]",
+      bgColor: "bg-[#024950]/10 hover:bg-[#024950]/20",
+      borderColor: "border-[#024950]/30 hover:border-[#024950]",
+      defaultConfig: { model: "gpt-4", temperature: 0.7 },
+    },
+    {
+      id: "api-call",
+      type: "action",
+      label: "API Call",
+      description: "Make HTTP request",
+      icon: <Globe className="h-4 w-4 text-white" />,
+      category: "action",
+      color: "bg-[#024950]",
+      bgColor: "bg-[#024950]/10 hover:bg-[#024950]/20",
+      borderColor: "border-[#024950]/30 hover:border-[#024950]",
+      defaultConfig: { method: "GET", timeout: 30 },
+    },
+    {
+      id: "send-email",
+      type: "action",
+      label: "Send Email",
+      description: "Send email notification",
+      icon: <Mail className="h-4 w-4 text-white" />,
+      category: "action",
+      color: "bg-[#024950]",
+      bgColor: "bg-[#024950]/10 hover:bg-[#024950]/20",
+      borderColor: "border-[#024950]/30 hover:border-[#024950]",
+      defaultConfig: { provider: "smtp", template: "default" },
+    },
+    {
+      id: "database",
+      type: "action",
+      label: "Database",
+      description: "Database operation",
+      icon: <Database className="h-4 w-4 text-white" />,
+      category: "action",
+      color: "bg-[#024950]",
+      bgColor: "bg-[#024950]/10 hover:bg-[#024950]/20",
+      borderColor: "border-[#024950]/30 hover:border-[#024950]",
+      defaultConfig: { operation: "select", table: "" },
+    },
+    // Logic nodes
+    {
+      id: "condition",
+      type: "logic",
+      label: "Condition",
+      description: "Conditional branching",
+      icon: <GitBranch className="h-4 w-4 text-white" />,
+      category: "logic",
+      color: "bg-[#964734]",
+      bgColor: "bg-[#964734]/10 hover:bg-[#964734]/20",
+      borderColor: "border-[#964734]/30 hover:border-[#964734]",
+      defaultConfig: { operator: "equals", value: "" },
+    },
+    {
+      id: "filter",
+      type: "logic",
+      label: "Filter",
+      description: "Filter data",
+      icon: <Filter className="h-4 w-4 text-white" />,
+      category: "logic",
+      color: "bg-[#964734]",
+      bgColor: "bg-[#964734]/10 hover:bg-[#964734]/20",
+      borderColor: "border-[#964734]/30 hover:border-[#964734]",
+      defaultConfig: { field: "", condition: "contains" },
+    },
+    {
+      id: "loop",
+      type: "logic",
+      label: "Loop",
+      description: "Iterate over data",
+      icon: <Repeat className="h-4 w-4 text-white" />,
+      category: "logic",
+      color: "bg-[#964734]",
+      bgColor: "bg-[#964734]/10 hover:bg-[#964734]/20",
+      borderColor: "border-[#964734]/30 hover:border-[#964734]",
+      defaultConfig: { maxIterations: 100 },
+    },
+    {
+      id: "delay",
+      type: "logic",
+      label: "Delay",
+      description: "Wait for specified time",
+      icon: <Timer className="h-4 w-4 text-white" />,
+      category: "logic",
+      color: "bg-[#964734]",
+      bgColor: "bg-[#964734]/10 hover:bg-[#964734]/20",
+      borderColor: "border-[#964734]/30 hover:border-[#964734]",
+      defaultConfig: { duration: 5, unit: "seconds" },
+    },
+  ];
+
+  // Custom node types for React Flow
+  const customNodeTypes: NodeTypes = {
+    custom: CustomNode,
+  };
+
+  // Drag and drop handlers
+  const onDragStart = (nodeType: DraggableNodeType) => {
+    setDraggedNodeType(nodeType);
+  };
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
+      const type = event.dataTransfer.getData("application/reactflow");
+
+      if (typeof type === "undefined" || !type || !reactFlowInstance || !reactFlowBounds) {
+        return;
+      }
+
+      const nodeData = JSON.parse(type) as Omit<DraggableNodeType, 'icon'>;
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      });
+
+      // Find the original node type to get the icon
+      const originalNodeType = nodeTypes.find(nt => nt.id === nodeData.id);
+
+      const newNode: Node = {
+        id: `${nodeData.id}-${Date.now()}`,
+        type: "custom",
+        position,
+        data: {
+          label: nodeData.label,
+          description: nodeData.description,
+          icon: originalNodeType?.icon,
+          category: nodeData.category,
+          config: nodeData.defaultConfig || {},
+          isConfigured: false,
+        },
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+      setDraggedNodeType(null);
+    },
+    [reactFlowInstance, setNodes, nodeTypes]
+  );
+
+  // React Flow event handlers
+  const onConnect = useCallback(
+    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges]
+  );
+
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+  }, []);
+
+  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+    setIsConfigDialogOpen(true);
+  }, []);
+
+  const onDeleteNode = useCallback(() => {
+    if (selectedNode) {
+      setNodes((nds) => nds.filter((node) => node.id !== selectedNode.id));
+      setEdges((eds) => eds.filter((edge) =>
+        edge.source !== selectedNode.id && edge.target !== selectedNode.id
+      ));
+      setSelectedNode(null);
+    }
+  }, [selectedNode, setNodes, setEdges]);
+
+  const onDuplicateNode = useCallback(() => {
+    if (selectedNode) {
+      const newNode: Node = {
+        ...selectedNode,
+        id: `${selectedNode.id}-copy-${Date.now()}`,
+        position: {
+          x: selectedNode.position.x + 50,
+          y: selectedNode.position.y + 50,
+        },
+      };
+      setNodes((nds) => nds.concat(newNode));
+    }
+  }, [selectedNode, setNodes]);
+
+  // Workflow management
+  const saveWorkflow = useCallback(() => {
+    const workflowData = {
+      ...workflow,
+      nodes,
+      edges,
+    };
+    console.log("Saving workflow:", workflowData);
+    // Here you would typically save to your backend
+  }, [workflow, nodes, edges]);
+
+  const testWorkflow = useCallback(() => {
+    console.log("Testing workflow with nodes:", nodes, "and edges:", edges);
+    // Here you would typically send the workflow for testing
+  }, [nodes, edges]);
+
+  const workflowTemplates: WorkflowTemplate[] = [
+    {
+      id: "customer-support",
+      name: "Customer Support Automation",
+      description: "Automatically handle customer inquiries with AI-powered responses and smart routing",
+      category: "Customer Service",
+      estimatedTime: "5 minutes",
+      complexity: "Simple",
+      nodes: [
         {
-          type: "condition",
+          id: "start",
+          type: "start",
+          title: "Customer Message Received",
+          description: "New message from customer",
+          icon: <MessageSquare className="h-5 w-5" />,
+          category: "Trigger",
+          connections: ["process-1"],
+        },
+        {
+          id: "process-1",
+          type: "process",
+          title: "Analyze Intent",
+          description: "AI analyzes customer intent",
+          icon: <Brain className="h-5 w-5" />,
+          category: "AI Processing",
+          connections: ["decision-1"],
+        },
+        {
+          id: "decision-1",
+          type: "decision",
+          title: "Can Auto-Respond?",
+          description: "Check if we can automatically respond",
+          icon: <GitBranch className="h-5 w-5" />,
           category: "Logic",
-          title: "Condition Check",
-          description: "Branch based on conditions",
-          icon: <GitBranch className="h-4 w-4" />,
-          color: "bg-orange-500",
+          connections: ["process-2", "end"],
         },
         {
-          type: "action",
-          category: "API",
-          title: "API Call",
-          description: "Call external APIs",
-          icon: <Zap className="h-4 w-4" />,
-          color: "bg-pink-500",
+          id: "process-2",
+          type: "process",
+          title: "Generate Response",
+          description: "AI generates appropriate response",
+          icon: <Bot className="h-5 w-5" />,
+          category: "AI Processing",
+          connections: ["end"],
         },
         {
-          type: "action",
-          category: "Workflow",
-          title: "Sub-Workflow",
-          description: "Execute another workflow",
-          icon: <Workflow className="h-4 w-4" />,
-          color: "bg-violet-500",
+          id: "end",
+          type: "end",
+          title: "Send Response",
+          description: "Response sent to customer",
+          icon: <Mail className="h-5 w-5" />,
+          category: "Action",
+          connections: [],
+        },
+      ],
+    },
+    {
+      id: "lead-qualification",
+      name: "Lead Qualification Pipeline",
+      description: "Automatically qualify and route sales leads based on predefined criteria",
+      category: "Sales",
+      estimatedTime: "8 minutes",
+      complexity: "Medium",
+      nodes: [
+        {
+          id: "start",
+          type: "start",
+          title: "New Lead Captured",
+          description: "Lead form submitted",
+          icon: <Users className="h-5 w-5" />,
+          category: "Trigger",
+          connections: ["process-1"],
+        },
+        {
+          id: "process-1",
+          type: "process",
+          title: "Enrich Lead Data",
+          description: "Gather additional lead information",
+          icon: <Database className="h-5 w-5" />,
+          category: "Data Processing",
+          connections: ["decision-1"],
+        },
+        {
+          id: "decision-1",
+          type: "decision",
+          title: "Qualified Lead?",
+          description: "Check lead qualification criteria",
+          icon: <BarChart3 className="h-5 w-5" />,
+          category: "Logic",
+          connections: ["process-2", "process-3"],
+        },
+        {
+          id: "process-2",
+          type: "process",
+          title: "Route to Sales",
+          description: "Assign to sales representative",
+          icon: <ArrowRight className="h-5 w-5" />,
+          category: "Action",
+          connections: ["end"],
+        },
+        {
+          id: "process-3",
+          type: "process",
+          title: "Add to Nurture Campaign",
+          description: "Add to email nurture sequence",
+          icon: <Mail className="h-5 w-5" />,
+          category: "Marketing",
+          connections: ["end"],
+        },
+        {
+          id: "end",
+          type: "end",
+          title: "Process Complete",
+          description: "Lead processed successfully",
+          icon: <Shield className="h-5 w-5" />,
+          category: "Completion",
+          connections: [],
+        },
+      ],
+    },
+    {
+      id: "content-moderation",
+      name: "Content Moderation System",
+      description: "Automatically moderate user-generated content using AI and human review",
+      category: "Security",
+      estimatedTime: "3 minutes",
+      complexity: "Advanced",
+      nodes: [
+        {
+          id: "start",
+          type: "start",
+          title: "Content Submitted",
+          description: "User submits content",
+          icon: <FileText className="h-5 w-5" />,
+          category: "Trigger",
+          connections: ["process-1"],
+        },
+        {
+          id: "process-1",
+          type: "process",
+          title: "AI Content Analysis",
+          description: "Analyze content for violations",
+          icon: <Brain className="h-5 w-5" />,
+          category: "AI Processing",
+          connections: ["decision-1"],
+        },
+        {
+          id: "decision-1",
+          type: "decision",
+          title: "Content Safe?",
+          description: "Check if content meets guidelines",
+          icon: <Shield className="h-5 w-5" />,
+          category: "Security",
+          connections: ["process-2", "process-3"],
+        },
+        {
+          id: "process-2",
+          type: "process",
+          title: "Approve Content",
+          description: "Content approved for publication",
+          icon: <ArrowRight className="h-5 w-5" />,
+          category: "Action",
+          connections: ["end"],
+        },
+        {
+          id: "process-3",
+          type: "process",
+          title: "Flag for Review",
+          description: "Send to human moderator",
+          icon: <Users className="h-5 w-5" />,
+          category: "Review",
+          connections: ["end"],
+        },
+        {
+          id: "end",
+          type: "end",
+          title: "Moderation Complete",
+          description: "Content moderation finished",
+          icon: <Shield className="h-5 w-5" />,
+          category: "Completion",
+          connections: [],
         },
       ],
     },
   ];
 
-  const handleStepSelect = useCallback((step: WorkflowStep) => {
-    setSelectedStep(step);
-    setIsConfigPanelOpen(true);
-  }, []);
-
-  const handleAddStep = useCallback((template: any) => {
-    const newStep: WorkflowStep = {
-      id: `${template.type}-${Date.now()}`,
-      type: template.type,
-      category: template.category,
-      title: template.title,
-      description: template.description,
-      icon: template.icon,
-      color: template.color,
-      config: {},
-      position: { x: 200 + Math.random() * 400, y: 200 + Math.random() * 200 },
-      connections: [],
-    };
-
-    setWorkflow((prev) => ({
-      ...prev,
-      steps: [...prev.steps, newStep],
-    }));
-    setSelectedStep(newStep);
-    setIsConfigPanelOpen(true);
-  }, []);
-
-  const handleDeleteStep = useCallback(
-    (stepId: string) => {
-      setWorkflow((prev) => ({
-        ...prev,
-        steps: prev.steps.filter((step) => step.id !== stepId),
-        connections: prev.connections.filter(
-          (conn) => conn.from !== stepId && conn.to !== stepId,
-        ),
-      }));
-      if (selectedStep?.id === stepId) {
-        setSelectedStep(null);
-        setIsConfigPanelOpen(false);
-      }
-    },
-    [selectedStep],
-  );
-
-  const handleSaveWorkflow = useCallback(() => {
-    console.log("Saving workflow:", workflow);
-    // In a real app, this would save to backend
-  }, [workflow]);
-
-  const handleTestWorkflow = useCallback(() => {
-    console.log("Testing workflow:", workflow);
-    // In a real app, this would test the workflow
-  }, [workflow]);
-
-  const renderStepCard = (step: WorkflowStep) => {
-    const isSelected = selectedStep?.id === step.id;
-
-    return (
-      <motion.div
-        key={step.id}
-        layout
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className={cn(
-          "absolute cursor-pointer transition-all duration-200",
-          isSelected && "ring-2 ring-primary ring-offset-2",
-        )}
-        style={{
-          left: step.position.x,
-          top: step.position.y,
-          width: 240,
-        }}
-        onClick={() => handleStepSelect(step)}
-        drag
-        dragMomentum={false}
-        onDragStart={() => setDraggedStep(step.id)}
-        onDragEnd={(_, info) => {
-          setDraggedStep(null);
-          setWorkflow((prev) => ({
-            ...prev,
-            steps: prev.steps.map((s) =>
-              s.id === step.id
-                ? {
-                    ...s,
-                    position: {
-                      x: s.position.x + info.offset.x,
-                      y: s.position.y + info.offset.y,
-                    },
-                  }
-                : s,
-            ),
-          }));
-        }}
-      >
-        <Card className="shadow-lg hover:shadow-xl transition-shadow bg-background border-2">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className={cn("p-2 rounded-lg text-white", step.color)}>
-                  {step.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-sm font-semibold truncate">
-                    {step.title}
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-xs mt-1">
-                    {step.category}
-                  </Badge>
-                </div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleStepSelect(step)}>
-                    <Edit3 className="h-4 w-4 mr-2" />
-                    Configure
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicate
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDeleteStep(step.id)}
-                    className="text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {step.description}
-            </p>
-            {Object.keys(step.config).length > 0 && (
-              <div className="mt-3 pt-3 border-t">
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(step.config)
-                    .slice(0, 2)
-                    .map(([key, value]) => (
-                      <Badge key={key} variant="outline" className="text-xs">
-                        {key}: {String(value).slice(0, 10)}
-                      </Badge>
-                    ))}
-                  {Object.keys(step.config).length > 2 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{Object.keys(step.config).length - 2} more
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-    );
+  const getComplexityColor = (complexity: string) => {
+    switch (complexity) {
+      case "Simple": return "bg-green-100 text-green-800 border-green-200";
+      case "Medium": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "Advanced": return "bg-red-100 text-red-800 border-red-200";
+      default: return "bg-gray-100 text-gray-800 border-gray-200";
+    }
   };
 
-  const renderConnections = () => {
-    return (
-      <svg
-        className="absolute inset-0 pointer-events-none"
-        style={{ zIndex: 1 }}
-      >
-        <defs>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="7"
-            refX="9"
-            refY="3.5"
-            orient="auto"
-          >
-            <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
-          </marker>
-        </defs>
-        {workflow.connections.map(({ from, to }) => {
-          const fromStep = workflow.steps.find((s) => s.id === from);
-          const toStep = workflow.steps.find((s) => s.id === to);
-
-          if (!fromStep || !toStep) return null;
-
-          const x1 = fromStep.position.x + 240;
-          const y1 = fromStep.position.y + 60;
-          const x2 = toStep.position.x;
-          const y2 = toStep.position.y + 60;
-
-          const midX = (x1 + x2) / 2;
-
-          return (
-            <path
-              key={`${from}-${to}`}
-              d={`M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`}
-              stroke="#6b7280"
-              strokeWidth="2"
-              fill="none"
-              markerEnd="url(#arrowhead)"
-              className="transition-all duration-200"
-            />
-          );
-        })}
-      </svg>
-    );
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case "Customer Service": return <MessageSquare className="h-6 w-6" />;
+      case "Sales": return <BarChart3 className="h-6 w-6" />;
+      case "Security": return <Shield className="h-6 w-6" />;
+      case "Marketing": return <Mail className="h-6 w-6" />;
+      default: return <Workflow className="h-6 w-6" />;
+    }
   };
 
-  const renderConfigPanel = () => {
-    if (!selectedStep) return null;
+  const getCategoryGradient = (category: string) => {
+    switch (category) {
+      case "Customer Service": return "from-[#003135] to-[#024950]";
+      case "Sales": return "from-[#024950] to-[#0FA4AF]";
+      case "Security": return "from-[#964734] to-[#024950]";
+      case "Marketing": return "from-[#0FA4AF] to-[#AFDDE5]";
+      default: return "from-[#003135] to-[#024950]";
+    }
+  };
 
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div
-              className={cn("p-2 rounded-lg text-white", selectedStep.color)}
-            >
-              {selectedStep.icon}
-            </div>
-            <div>
-              <h3 className="font-semibold">{selectedStep.title}</h3>
-              <p className="text-sm text-muted-foreground">
-                {selectedStep.category}
-              </p>
-            </div>
+  const handleTemplateSelect = (template: WorkflowTemplate) => {
+    setSelectedTemplate(template);
+    setCurrentView("preview");
+  };
+
+  const handleUseTemplate = () => {
+    if (selectedTemplate) {
+      setCurrentView("builder");
+    }
+  };
+
+  const renderTemplateGallery = () => (
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <Workflow className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Workflow Templates</h1>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setCurrentView("builder")}
+          className="border-[#0FA4AF]/30 text-[#024950] hover:bg-[#0FA4AF]/10 dark:text-[#AFDDE5] dark:border-[#024950] dark:hover:bg-[#024950]/50"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Create Custom
+        </Button>
+      </div>
+
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-[#024950] to-[#0FA4AF] rounded-2xl mb-6">
+            <Workflow className="h-10 w-10 text-white" />
           </div>
+          <h1 className="text-5xl font-bold text-[#003135] dark:text-white mb-6">
+            Workflow Templates
+          </h1>
+          <p className="text-xl text-[#024950] dark:text-[#AFDDE5] max-w-3xl mx-auto leading-relaxed">
+            Choose from our professionally designed workflow templates.
+            Each template is optimized for specific business processes and can be customized to match your exact requirements.
+          </p>
+        </div>
+
+        {/* Template Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+          {workflowTemplates.map((template) => (
+            <div
+              key={template.id}
+              className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 cursor-pointer border border-gray-100 overflow-hidden"
+              onClick={() => handleTemplateSelect(template)}
+            >
+              {/* Template Header */}
+              <div className={`h-32 bg-gradient-to-r ${getCategoryGradient(template.category)} relative overflow-hidden`}>
+                <div className="absolute inset-0 bg-black/10"></div>
+                <div className="relative p-6 h-full flex items-center justify-between">
+                  <div className="text-white">
+                    <h3 className="font-bold text-xl mb-1">{template.name}</h3>
+                    <p className="text-white/90 text-sm">{template.category}</p>
+                  </div>
+                  <div className="text-white/90">
+                    {getCategoryIcon(template.category)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Template Content */}
+              <div className="p-6">
+                <p className="text-gray-600 mb-6 leading-relaxed text-sm">
+                  {template.description}
+                </p>
+
+                {/* Metadata */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-600">{template.estimatedTime}</span>
+                    </div>
+                    <Badge className={`text-xs px-3 py-1 border ${getComplexityColor(template.complexity)}`}>
+                      {template.complexity}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500 font-medium">
+                    {template.nodes.length} steps
+                  </span>
+                  <Button
+                    size="sm"
+                    className={`bg-gradient-to-r ${getCategoryGradient(template.category)} hover:shadow-lg transition-all duration-300 group-hover:scale-105`}
+                  >
+                    Preview <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Create Custom Button */}
+        <div className="text-center">
           <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsConfigPanelOpen(false)}
+            size="lg"
+            variant="outline"
+            className="px-12 py-6 text-lg border-2 border-dashed border-[#0FA4AF]/30 hover:border-[#0FA4AF] hover:bg-[#0FA4AF]/10 dark:hover:bg-[#024950]/50 transition-all duration-300 rounded-2xl text-[#024950] dark:text-[#AFDDE5]"
+            onClick={() => setCurrentView("builder")}
           >
-            <X className="h-4 w-4" />
+            <Plus className="h-6 w-6 mr-3" />
+            Create Custom Workflow
           </Button>
         </div>
-
-        <Separator />
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="step-title">Title</Label>
-            <Input
-              id="step-title"
-              value={selectedStep.title}
-              onChange={(e) => {
-                const newTitle = e.target.value;
-                setWorkflow((prev) => ({
-                  ...prev,
-                  steps: prev.steps.map((step) =>
-                    step.id === selectedStep.id
-                      ? { ...step, title: newTitle }
-                      : step,
-                  ),
-                }));
-                setSelectedStep({ ...selectedStep, title: newTitle });
-              }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="step-description">Description</Label>
-            <Textarea
-              id="step-description"
-              value={selectedStep.description}
-              onChange={(e) => {
-                const newDescription = e.target.value;
-                setWorkflow((prev) => ({
-                  ...prev,
-                  steps: prev.steps.map((step) =>
-                    step.id === selectedStep.id
-                      ? { ...step, description: newDescription }
-                      : step,
-                  ),
-                }));
-                setSelectedStep({
-                  ...selectedStep,
-                  description: newDescription,
-                });
-              }}
-              rows={3}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
-            <h4 className="font-medium">Configuration</h4>
-
-            {selectedStep.type === "agent" &&
-              selectedStep.category === "Intent" && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Confidence Threshold</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={selectedStep.config.threshold || 0.8}
-                      onChange={(e) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          threshold: parseFloat(e.target.value),
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Model</Label>
-                    <Select
-                      value={selectedStep.config.model || "intent-classifier"}
-                      onValueChange={(value) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          model: value,
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="intent-classifier">
-                          Intent Classifier
-                        </SelectItem>
-                        <SelectItem value="custom-model">
-                          Custom Model
-                        </SelectItem>
-                        <SelectItem value="llm-based">LLM-based</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
-            {selectedStep.type === "agent" &&
-              selectedStep.category === "LLM" && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Provider</Label>
-                    <Select
-                      value={selectedStep.config.provider || "openai"}
-                      onValueChange={(value) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          provider: value,
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                        <SelectItem value="google">Google</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Model</Label>
-                    <Select
-                      value={selectedStep.config.model || "gpt-4"}
-                      onValueChange={(value) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          model: value,
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gpt-4">GPT-4</SelectItem>
-                        <SelectItem value="gpt-3.5-turbo">
-                          GPT-3.5 Turbo
-                        </SelectItem>
-                        <SelectItem value="claude-3-opus">
-                          Claude 3 Opus
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Temperature</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      value={selectedStep.config.temperature || 0.7}
-                      onChange={(e) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          temperature: parseFloat(e.target.value),
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    />
-                  </div>
-                </>
-              )}
-
-            {selectedStep.type === "agent" &&
-              selectedStep.category === "Retriever" && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Knowledge Base</Label>
-                    <Select
-                      value={
-                        selectedStep.config.knowledgeBase || "support-docs"
-                      }
-                      onValueChange={(value) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          knowledgeBase: value,
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="support-docs">
-                          Support Documentation
-                        </SelectItem>
-                        <SelectItem value="product-info">
-                          Product Information
-                        </SelectItem>
-                        <SelectItem value="faq">FAQ Database</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Top K Results</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={selectedStep.config.topK || 5}
-                      onChange={(e) => {
-                        const newConfig = {
-                          ...selectedStep.config,
-                          topK: parseInt(e.target.value),
-                        };
-                        setWorkflow((prev) => ({
-                          ...prev,
-                          steps: prev.steps.map((step) =>
-                            step.id === selectedStep.id
-                              ? { ...step, config: newConfig }
-                              : step,
-                          ),
-                        }));
-                        setSelectedStep({ ...selectedStep, config: newConfig });
-                      }}
-                    />
-                  </div>
-                </>
-              )}
-
-            {selectedStep.type === "condition" && (
-              <div className="space-y-2">
-                <Label>Condition Logic</Label>
-                <Textarea
-                  placeholder="Define your conditions here..."
-                  value={JSON.stringify(
-                    selectedStep.config.conditions || [],
-                    null,
-                    2,
-                  )}
-                  onChange={(e) => {
-                    try {
-                      const conditions = JSON.parse(e.target.value);
-                      const newConfig = { ...selectedStep.config, conditions };
-                      setWorkflow((prev) => ({
-                        ...prev,
-                        steps: prev.steps.map((step) =>
-                          step.id === selectedStep.id
-                            ? { ...step, config: newConfig }
-                            : step,
-                        ),
-                      }));
-                      setSelectedStep({ ...selectedStep, config: newConfig });
-                    } catch (e) {
-                      // Invalid JSON, ignore
-                    }
-                  }}
-                  rows={4}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="h-screen bg-background flex flex-col">
-      {/* Workflow Header */}
-      <div className="border-b bg-card px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div>
-              <Input
-                value={workflow.name}
-                onChange={(e) =>
-                  setWorkflow((prev) => ({ ...prev, name: e.target.value }))
-                }
-                className="text-xl font-bold border-none px-0 h-auto bg-transparent focus-visible:ring-0"
-                placeholder="Workflow name..."
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                {workflow.description}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <Badge
-              variant={workflow.status === "active" ? "default" : "secondary"}
-              className="capitalize"
-            >
-              {workflow.status}
-            </Badge>
-            <Button variant="outline" size="sm" onClick={handleTestWorkflow}>
-              <Play className="h-4 w-4 mr-2" />
-              Test
-            </Button>
-            <Button size="sm" onClick={handleSaveWorkflow}>
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Step Templates Sidebar */}
-        <div className="w-80 border-r bg-card flex flex-col">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold text-sm">Workflow Components</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              Drag components to build your workflow
-            </p>
-          </div>
-          <ScrollArea className="flex-1">
-            <div className="p-4 space-y-6">
-              {stepTemplates.map((category) => (
-                <div key={category.category}>
-                  <h4 className="font-medium text-sm mb-3 text-muted-foreground uppercase tracking-wide">
-                    {category.category}
-                  </h4>
-                  <div className="space-y-2">
-                    {category.items.map((template, index) => (
-                      <TooltipProvider key={index}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Card
-                              className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50"
-                              onClick={() => handleAddStep(template)}
-                            >
-                              <CardContent className="p-3">
-                                <div className="flex items-center space-x-3">
-                                  <div
-                                    className={cn(
-                                      "p-2 rounded-lg text-white flex-shrink-0",
-                                      template.color,
-                                    )}
-                                  >
-                                    {template.icon}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <h5 className="font-medium text-sm truncate">
-                                      {template.title}
-                                    </h5>
-                                    <p className="text-xs text-muted-foreground line-clamp-2">
-                                      {template.description}
-                                    </p>
-                                  </div>
-                                  <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TooltipTrigger>
-                          <TooltipContent side="right">
-                            <p>Click to add {template.title}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Canvas */}
-        <div className="flex-1 relative overflow-hidden">
-          <div className="absolute inset-0 bg-muted/20">
-            {/* Grid Pattern */}
-            <div
-              className="absolute inset-0 opacity-30"
-              style={{
-                backgroundImage: `
-                  radial-gradient(circle, #e5e7eb 1px, transparent 1px)
-                `,
-                backgroundSize: "20px 20px",
-              }}
-            />
-
-            {/* Workflow Steps */}
-            <div
-              className="relative h-full w-full"
-              style={{ minHeight: "2000px", minWidth: "2000px" }}
-            >
-              {renderConnections()}
-              <AnimatePresence>
-                {workflow.steps.map(renderStepCard)}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-
-        {/* Configuration Panel */}
-        <AnimatePresence>
-          {isConfigPanelOpen && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 400, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="border-l bg-card overflow-hidden"
-            >
-              <div className="p-4 border-b">
-                <h3 className="font-semibold text-sm">Configuration</h3>
-              </div>
-              <ScrollArea className="h-full">
-                <div className="p-4">{renderConfigPanel()}</div>
-              </ScrollArea>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
     </div>
   );
+
+  const renderTemplatePreview = () => {
+    if (!selectedTemplate) return null;
+
+    return (
+      <div className="p-6">
+        {/* Page Header - Inline Breadcrumb Style */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              onClick={() => setCurrentView("templates")}
+              className="flex items-center space-x-2 text-[#024950] dark:text-[#AFDDE5] hover:bg-[#0FA4AF]/10 dark:hover:bg-[#024950]/50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Back to Templates</span>
+            </Button>
+            <span className="text-[#024950]/50 dark:text-[#AFDDE5]/50">/</span>
+            <h1 className="text-xl font-semibold text-[#003135] dark:text-white">{selectedTemplate.name}</h1>
+          </div>
+          <div className="flex space-x-4">
+            <Button variant="outline" size="lg" className="border-[#0FA4AF]/30 text-[#024950] hover:bg-[#0FA4AF]/10 dark:text-[#AFDDE5] dark:border-[#024950] dark:hover:bg-[#024950]/50">
+              <Save className="h-4 w-4 mr-2" />
+              Save Template
+            </Button>
+            <Button size="lg" onClick={handleUseTemplate} className="bg-gradient-to-r from-[#024950] to-[#0FA4AF] text-white hover:from-[#003135] hover:to-[#024950]">
+              <Play className="h-4 w-4 mr-2" />
+              Use This Template
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+
+          {/* Template Info */}
+          <div className="bg-white rounded-3xl shadow-xl p-8 mb-8">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center space-x-4">
+                <div className={`p-4 bg-gradient-to-r ${getCategoryGradient(selectedTemplate.category)} rounded-2xl text-white`}>
+                  {getCategoryIcon(selectedTemplate.category)}
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    {selectedTemplate.name}
+                  </h1>
+                  <p className="text-gray-600 text-lg">
+                    {selectedTemplate.description}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end space-y-2">
+                <Badge className={`px-4 py-2 border ${getComplexityColor(selectedTemplate.complexity)}`}>
+                  {selectedTemplate.complexity}
+                </Badge>
+                <div className="flex items-center space-x-2 text-gray-500">
+                  <Clock className="h-4 w-4" />
+                  <span>{selectedTemplate.estimatedTime}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Workflow Visualization */}
+          <div className="bg-white rounded-3xl shadow-xl p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-8">Workflow Steps</h2>
+            <div className="space-y-6">
+              {selectedTemplate.nodes.map((node, index) => (
+                <div key={node.id} className="flex items-center space-x-6">
+                  {/* Step Number */}
+                  <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-r from-[#024950] to-[#0FA4AF] rounded-full flex items-center justify-center text-white font-bold">
+                    {index + 1}
+                  </div>
+
+                  {/* Step Card */}
+                  <div className="flex-1 bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                    <div className="flex items-center space-x-4">
+                      <div className="p-3 bg-white rounded-xl shadow-sm">
+                        {node.icon}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg text-gray-900 mb-1">
+                          {node.title}
+                        </h3>
+                        <p className="text-gray-600 mb-2">
+                          {node.description}
+                        </p>
+                        <Badge variant="secondary" className="text-xs">
+                          {node.category}
+                        </Badge>
+                      </div>
+                      <div className="text-gray-400">
+                        {node.type === "decision" && <GitBranch className="h-6 w-6" />}
+                        {node.type === "process" && <Zap className="h-6 w-6" />}
+                        {node.type === "start" && <Play className="h-6 w-6" />}
+                        {node.type === "end" && <Shield className="h-6 w-6" />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Arrow */}
+                  {index < selectedTemplate.nodes.length - 1 && (
+                    <div className="flex-shrink-0">
+                      <ArrowRight className="h-6 w-6 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderWorkflowBuilder = () => (
+    <ReactFlowProvider>
+      <div className="h-screen flex flex-col bg-gradient-to-br from-[#AFDDE5]/10 to-[#964734]/5">
+        {/* Enhanced Header */}
+        <div className="flex items-center justify-between p-6 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-b border-[#0FA4AF]/20 dark:border-[#024950] shadow-sm">
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCurrentView("templates")}
+              className="text-[#964734] dark:text-[#AFDDE5] hover:bg-[#964734]/10 dark:hover:bg-[#964734]/20 transition-all duration-300 group"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform duration-300" />
+              Back to Templates
+            </Button>
+            <div className="h-6 w-px bg-[#964734]/30"></div>
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-[#964734] to-[#024950] rounded-lg flex items-center justify-center">
+                <Workflow className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-[#003135] dark:text-white">
+                  {workflow.name}
+                </h1>
+                <p className="text-xs text-[#964734] dark:text-[#AFDDE5]">
+                  Drag & Drop Workflow Builder
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            {selectedNode && (
+              <div className="flex items-center space-x-2 px-3 py-1 bg-[#964734]/10 rounded-lg border border-[#964734]/30">
+                <span className="text-sm text-[#964734] font-medium">
+                  {selectedNode.data.label} selected
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDuplicateNode}
+                  className="h-6 w-6 p-0 hover:bg-[#964734]/20"
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDeleteNode}
+                  className="h-6 w-6 p-0 hover:bg-red-500/20 text-red-500"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={saveWorkflow}
+              className="border-[#964734]/30 dark:border-[#024950] hover:bg-[#964734]/10 dark:hover:bg-[#964734]/20 text-[#964734] transition-all duration-300 group"
+            >
+              <Save className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-300" />
+              Save Draft
+            </Button>
+            <Button
+              size="sm"
+              onClick={testWorkflow}
+              className="bg-gradient-to-r from-[#964734] to-[#024950] hover:from-[#024950] hover:to-[#0FA4AF] text-white shadow-lg hover:shadow-xl transition-all duration-300 group"
+            >
+              <Play className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-300" />
+              Test Workflow
+            </Button>
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Enhanced Node Palette */}
+          <div className="w-80 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-r border-[#0FA4AF]/20 dark:border-[#024950] p-4 overflow-y-auto">
+            <div className="space-y-6">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-8 h-8 bg-gradient-to-r from-[#0FA4AF] to-[#964734] rounded-lg flex items-center justify-center">
+                  <Plus className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#003135] dark:text-white">Node Palette</h2>
+                  <p className="text-xs text-[#964734] dark:text-[#AFDDE5]">Drag to canvas</p>
+                </div>
+              </div>
+
+              {/* Trigger Nodes */}
+              <div>
+                <h3 className="font-semibold text-[#003135] dark:text-white mb-3 flex items-center">
+                  <div className="w-2 h-2 bg-[#0FA4AF] rounded-full mr-2"></div>
+                  Triggers
+                </h3>
+                <div className="space-y-2">
+                  {nodeTypes.filter(node => node.category === "trigger").map((nodeType) => (
+                    <DraggableNode
+                      key={nodeType.id}
+                      nodeType={nodeType}
+                      onDragStart={onDragStart}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Nodes */}
+              <div>
+                <h3 className="font-semibold text-[#003135] dark:text-white mb-3 flex items-center">
+                  <div className="w-2 h-2 bg-[#024950] rounded-full mr-2"></div>
+                  Actions
+                </h3>
+                <div className="space-y-2">
+                  {nodeTypes.filter(node => node.category === "action").map((nodeType) => (
+                    <DraggableNode
+                      key={nodeType.id}
+                      nodeType={nodeType}
+                      onDragStart={onDragStart}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Logic Nodes */}
+              <div>
+                <h3 className="font-semibold text-[#003135] dark:text-white mb-3 flex items-center">
+                  <div className="w-2 h-2 bg-[#964734] rounded-full mr-2"></div>
+                  Logic & Control
+                </h3>
+                <div className="space-y-2">
+                  {nodeTypes.filter(node => node.category === "logic").map((nodeType) => (
+                    <DraggableNode
+                      key={nodeType.id}
+                      nodeType={nodeType}
+                      onDragStart={onDragStart}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ReactFlow Canvas */}
+          <div className="flex-1 relative">
+            <div
+              ref={reactFlowWrapper}
+              className="w-full h-full"
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+            >
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={onNodeClick}
+                onNodeDoubleClick={onNodeDoubleClick}
+                onInit={setReactFlowInstance}
+                nodeTypes={customNodeTypes}
+                fitView
+                className="bg-gradient-to-br from-[#AFDDE5]/5 to-[#964734]/5"
+              >
+                <Background
+                  color="#964734"
+                  gap={20}
+                  size={1}
+                />
+                <Controls
+                  className="bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border border-[#964734]/30 rounded-lg shadow-lg"
+                />
+                <MiniMap
+                  className="bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border border-[#964734]/30 rounded-lg shadow-lg"
+                  nodeColor={(node) => {
+                    switch (node.data.category) {
+                      case "trigger": return "#0FA4AF";
+                      case "action": return "#024950";
+                      case "logic": return "#964734";
+                      default: return "#AFDDE5";
+                    }
+                  }}
+                />
+              </ReactFlow>
+
+              {/* Empty State */}
+              {nodes.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center text-[#024950]/60 dark:text-[#AFDDE5]/60 max-w-md">
+                    <div className="w-16 h-16 bg-gradient-to-r from-[#964734]/20 to-[#0FA4AF]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Workflow className="h-8 w-8 text-[#964734]" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-[#003135] dark:text-white mb-2">
+                      Start Building Your Workflow
+                    </h3>
+                    <p className="text-sm mb-4">
+                      Drag nodes from the palette to create your automation workflow
+                    </p>
+                    <div className="flex items-center justify-center space-x-4 text-xs">
+                      <div className="flex items-center space-x-1">
+                        <MousePointer className="h-3 w-3" />
+                        <span>Drag & Drop</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <ArrowRight className="h-3 w-3" />
+                        <span>Connect</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Settings className="h-3 w-3" />
+                        <span>Configure</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Properties Panel */}
+          <div className="col-span-3 space-y-4">
+            <Card className="bg-white dark:bg-[#003135] border border-[#0FA4AF]/20 dark:border-[#024950]">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#003135] dark:text-white">Properties</CardTitle>
+                <CardDescription className="text-[#024950] dark:text-[#AFDDE5]">
+                  Configure selected node
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center text-[#024950]/60 dark:text-[#AFDDE5]/60 py-8">
+                  <Settings className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Select a node to configure its properties</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white dark:bg-[#003135] border border-[#0FA4AF]/20 dark:border-[#024950]">
+              <CardHeader>
+                <CardTitle className="text-lg text-[#003135] dark:text-white">Workflow Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="workflow-name" className="text-[#024950] dark:text-[#AFDDE5]">Name</Label>
+                  <Input
+                    id="workflow-name"
+                    placeholder="Enter workflow name"
+                    className="border-[#0FA4AF]/30 focus:border-[#0FA4AF]"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Enhanced Properties Panel */}
+          <div className="w-80 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-l border-[#0FA4AF]/20 dark:border-[#024950] p-4 overflow-y-auto">
+            <div className="space-y-6">
+              {/* Node Properties */}
+              <div>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-r from-[#964734] to-[#024950] rounded-lg flex items-center justify-center">
+                    <Settings className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-[#003135] dark:text-white">Properties</h2>
+                    <p className="text-xs text-[#964734] dark:text-[#AFDDE5]">Configure node</p>
+                  </div>
+                </div>
+
+                {selectedNode ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gradient-to-r from-[#964734]/10 to-[#0FA4AF]/10 rounded-lg border border-[#964734]/30">
+                      <div className="flex items-center space-x-3 mb-3">
+                        {selectedNode.data.icon}
+                        <div>
+                          <h3 className="font-semibold text-[#003135] dark:text-white">
+                            {selectedNode.data.label}
+                          </h3>
+                          <p className="text-xs text-[#964734] dark:text-[#AFDDE5]">
+                            {selectedNode.data.description}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => setIsConfigDialogOpen(true)}
+                        className="w-full bg-gradient-to-r from-[#964734] to-[#024950] hover:from-[#024950] hover:to-[#0FA4AF] text-white"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Configure Node
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-[#024950]/60 dark:text-[#AFDDE5]/60 py-8">
+                    <div className="w-12 h-12 bg-[#964734]/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <MousePointer className="h-6 w-6 text-[#964734]" />
+                    </div>
+                    <p className="text-sm">Select a node to configure its properties</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Workflow Info */}
+              <div>
+                <h3 className="font-semibold text-[#003135] dark:text-white mb-4 flex items-center">
+                  <div className="w-2 h-2 bg-[#964734] rounded-full mr-2"></div>
+                  Workflow Settings
+                </h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="workflow-name" className="text-[#024950] dark:text-[#AFDDE5]">Name</Label>
+                    <Input
+                      id="workflow-name"
+                      value={workflow.name}
+                      onChange={(e) => setWorkflow(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter workflow name"
+                      className="border-[#964734]/30 focus:border-[#964734] focus:ring-[#964734]/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="workflow-description" className="text-[#024950] dark:text-[#AFDDE5]">Description</Label>
+                    <Textarea
+                      id="workflow-description"
+                      value={workflow.description}
+                      onChange={(e) => setWorkflow(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Describe your workflow"
+                      rows={3}
+                      className="border-[#964734]/30 focus:border-[#964734] focus:ring-[#964734]/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[#024950] dark:text-[#AFDDE5]">Status</Label>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        checked={workflow.isActive}
+                        onCheckedChange={(checked) => setWorkflow(prev => ({ ...prev, isActive: checked }))}
+                      />
+                      <span className="text-sm text-[#024950] dark:text-[#AFDDE5]">
+                        {workflow.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workflow Stats */}
+              <div className="p-4 bg-gradient-to-r from-[#0FA4AF]/10 to-[#964734]/10 rounded-lg border border-[#0FA4AF]/30">
+                <h4 className="font-medium text-[#003135] dark:text-white mb-3">Workflow Stats</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-[#024950] dark:text-[#AFDDE5]">Nodes:</span>
+                    <span className="font-medium text-[#964734]">{nodes.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#024950] dark:text-[#AFDDE5]">Connections:</span>
+                    <span className="font-medium text-[#964734]">{edges.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#024950] dark:text-[#AFDDE5]">Status:</span>
+                    <Badge className={workflow.isActive ? "bg-[#0FA4AF]/20 text-[#0FA4AF]" : "bg-gray-500/20 text-gray-500"}>
+                      {workflow.isActive ? "Active" : "Draft"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Node Configuration Dialog */}
+        <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+          <DialogContent className="max-w-2xl bg-white dark:bg-[#003135] border-[#964734]/30">
+            <DialogHeader>
+              <DialogTitle className="text-[#003135] dark:text-white flex items-center">
+                {selectedNode?.data.icon}
+                <span className="ml-2">Configure {selectedNode?.data.label}</span>
+              </DialogTitle>
+              <DialogDescription className="text-[#024950] dark:text-[#AFDDE5]">
+                Set up the configuration for this node
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedNode && (
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[#024950] dark:text-[#AFDDE5]">Node Name</Label>
+                    <Input
+                      value={selectedNode.data.label}
+                      className="border-[#964734]/30 focus:border-[#964734]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[#024950] dark:text-[#AFDDE5]">Category</Label>
+                    <Select value={selectedNode.data.category}>
+                      <SelectTrigger className="border-[#964734]/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="trigger">Trigger</SelectItem>
+                        <SelectItem value="action">Action</SelectItem>
+                        <SelectItem value="logic">Logic</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[#024950] dark:text-[#AFDDE5]">Description</Label>
+                  <Textarea
+                    value={selectedNode.data.description || ""}
+                    placeholder="Enter node description"
+                    className="border-[#964734]/30 focus:border-[#964734]"
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsConfigDialogOpen(false)}
+                    className="border-[#964734]/30 text-[#964734] hover:bg-[#964734]/10"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // Here you would update the node configuration
+                      setIsConfigDialogOpen(false);
+                    }}
+                    className="bg-gradient-to-r from-[#964734] to-[#024950] hover:from-[#024950] hover:to-[#0FA4AF] text-white"
+                  >
+                    Save Configuration
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </ReactFlowProvider>
+  );
+
+  // Main render logic
+  if (currentView === "preview") {
+    return renderTemplatePreview();
+  }
+
+  if (currentView === "builder") {
+    return renderWorkflowBuilder();
+  }
+
+  return renderTemplateGallery();
 };
 
 export default WorkflowBuilder;

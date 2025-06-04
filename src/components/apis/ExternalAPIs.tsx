@@ -161,131 +161,129 @@ const ExternalAPIs = () => {
   const getStatusIcon = (status: ExternalAPI["status"]) => {
     switch (status) {
       case "connected":
-        return <Check className="h-4 w-4 text-green-500" />;
+        return <Check className="h-4 w-4 text-[#0FA4AF]" />;
       case "error":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-[#964734]" />;
       default:
-        return <X className="h-4 w-4 text-gray-500" />;
+        return <X className="h-4 w-4 text-[#024950]" />;
     }
   };
 
   const getStatusBadge = (status: ExternalAPI["status"]) => {
     switch (status) {
       case "connected":
-        return <Badge className="bg-green-100 text-green-800">Connected</Badge>;
+        return <Badge className="bg-[#0FA4AF]/20 text-[#024950] border-[#0FA4AF]/30">Connected</Badge>;
       case "error":
-        return <Badge variant="destructive">Error</Badge>;
+        return <Badge className="bg-[#964734]/20 text-[#964734] border-[#964734]/30">Error</Badge>;
       default:
-        return <Badge variant="outline">Disconnected</Badge>;
+        return <Badge className="bg-[#024950]/20 text-[#024950] border-[#024950]/30">Disconnected</Badge>;
     }
   };
 
   return (
-    <div className="bg-background">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">External APIs</h1>
-            <p className="text-muted-foreground mt-1">
-              Connect and manage external API integrations
-            </p>
-          </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add API
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add External API</DialogTitle>
-                <DialogDescription>
-                  Configure a new external API integration
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="api-name">API Name</Label>
-                  <Input
-                    id="api-name"
-                    value={newAPI.name}
-                    onChange={(e) =>
-                      setNewAPI({ ...newAPI, name: e.target.value })
-                    }
-                    placeholder="Enter API name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="api-type">API Type</Label>
-                  <Select
-                    value={newAPI.type}
-                    onValueChange={(value) =>
-                      setNewAPI({
-                        ...newAPI,
-                        type: value as ExternalAPI["type"],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="rest">REST API</SelectItem>
-                      <SelectItem value="graphql">GraphQL</SelectItem>
-                      <SelectItem value="webhook">Webhook</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="base-url">Base URL</Label>
-                  <Input
-                    id="base-url"
-                    value={newAPI.baseUrl}
-                    onChange={(e) =>
-                      setNewAPI({ ...newAPI, baseUrl: e.target.value })
-                    }
-                    placeholder="https://api.example.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="auth-type">Authentication Type</Label>
-                  <Select
-                    value={newAPI.authType}
-                    onValueChange={(value) =>
-                      setNewAPI({
-                        ...newAPI,
-                        authType: value as ExternalAPI["authType"],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="apiKey">API Key</SelectItem>
-                      <SelectItem value="oauth">OAuth</SelectItem>
-                      <SelectItem value="bearer">Bearer Token</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAddDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddAPI}>Add API</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+    <div className="p-6">
+      {/* Page Header - Inline Breadcrumb Style */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-2">
+          <Globe className="h-5 w-5 text-[#024950]" />
+          <h1 className="text-xl font-semibold text-[#003135] dark:text-white">External APIs</h1>
         </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-[#024950] hover:bg-[#0FA4AF] text-white">
+              <Plus className="h-4 w-4 mr-2" />
+              Add API
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add External API</DialogTitle>
+              <DialogDescription>
+                Configure a new external API integration
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="api-name">API Name</Label>
+                <Input
+                  id="api-name"
+                  value={newAPI.name}
+                  onChange={(e) =>
+                    setNewAPI({ ...newAPI, name: e.target.value })
+                  }
+                  placeholder="Enter API name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="api-type">API Type</Label>
+                <Select
+                  value={newAPI.type}
+                  onValueChange={(value) =>
+                    setNewAPI({
+                      ...newAPI,
+                      type: value as ExternalAPI["type"],
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rest">REST API</SelectItem>
+                    <SelectItem value="graphql">GraphQL</SelectItem>
+                    <SelectItem value="webhook">Webhook</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="base-url">Base URL</Label>
+                <Input
+                  id="base-url"
+                  value={newAPI.baseUrl}
+                  onChange={(e) =>
+                    setNewAPI({ ...newAPI, baseUrl: e.target.value })
+                  }
+                  placeholder="https://api.example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="auth-type">Authentication Type</Label>
+                <Select
+                  value={newAPI.authType}
+                  onValueChange={(value) =>
+                    setNewAPI({
+                      ...newAPI,
+                      authType: value as ExternalAPI["authType"],
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="apiKey">API Key</SelectItem>
+                    <SelectItem value="oauth">OAuth</SelectItem>
+                    <SelectItem value="bearer">Bearer Token</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAddAPI}>Add API</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
 
+      <div className="space-y-6">
         {/* APIs Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {apis.map((api) => (
