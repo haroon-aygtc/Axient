@@ -1,931 +1,573 @@
-"use client";
-
-import React, { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
-  TooltipTrigger,
   TooltipContent,
   TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Plus,
   Save,
   Play,
   Settings,
   X,
-  Move,
-  ChevronRight,
-  ChevronDown,
   ArrowRight,
+  Zap,
+  Brain,
+  Database,
+  Workflow,
+  MessageSquare,
+  Shield,
+  Bot,
+  FileText,
+  GitBranch,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  MoreVertical,
+  Copy,
+  Trash2,
+  Edit3,
+  Home,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
-interface AgentModule {
+interface WorkflowStep {
   id: string;
-  type:
-    | "intent"
-    | "retriever"
-    | "tool"
-    | "workflow"
-    | "memory"
-    | "follow"
-    | "formatter"
-    | "guardrail"
-    | "llm";
-  label: string;
+  type: "trigger" | "action" | "condition" | "agent";
+  category: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+  config: Record<string, any>;
   position: { x: number; y: number };
   connections: string[];
-  config: Record<string, any>;
 }
 
-interface Connection {
-  source: string;
-  target: string;
+interface WorkflowData {
+  id: string;
+  name: string;
+  description: string;
+  steps: WorkflowStep[];
+  connections: Array<{ from: string; to: string }>;
+  status: "draft" | "active" | "paused";
+  lastModified: Date;
 }
 
 const WorkflowBuilder = () => {
-  const [modules, setModules] = useState<AgentModule[]>([
+  const [workflow, setWorkflow] = useState<WorkflowData>({
+    id: "1",
+    name: "Customer Support Workflow",
+    description: "Automated customer support with AI agents",
+    steps: [
+      {
+        id: "trigger-1",
+        type: "trigger",
+        category: "Message",
+        title: "New Customer Message",
+        description: "Triggers when a customer sends a message",
+        icon: <MessageSquare className="h-4 w-4" />,
+        color: "bg-blue-500",
+        config: { source: "widget", filters: [] },
+        position: { x: 100, y: 100 },
+        connections: ["agent-1"],
+      },
+      {
+        id: "agent-1",
+        type: "agent",
+        category: "Intent",
+        title: "Intent Recognition",
+        description: "Analyzes customer intent from message",
+        icon: <Brain className="h-4 w-4" />,
+        color: "bg-purple-500",
+        config: { model: "intent-classifier", threshold: 0.8 },
+        position: { x: 350, y: 100 },
+        connections: ["condition-1"],
+      },
+      {
+        id: "condition-1",
+        type: "condition",
+        category: "Logic",
+        title: "Intent Check",
+        description: "Routes based on detected intent",
+        icon: <GitBranch className="h-4 w-4" />,
+        color: "bg-orange-500",
+        config: {
+          conditions: [
+            { field: "intent", operator: "equals", value: "support" },
+          ],
+        },
+        position: { x: 600, y: 100 },
+        connections: ["agent-2", "agent-3"],
+      },
+      {
+        id: "agent-2",
+        type: "agent",
+        category: "Retriever",
+        title: "Knowledge Search",
+        description: "Searches knowledge base for relevant information",
+        icon: <Database className="h-4 w-4" />,
+        color: "bg-green-500",
+        config: { knowledgeBase: "support-docs", topK: 5 },
+        position: { x: 850, y: 50 },
+        connections: ["agent-4"],
+      },
+      {
+        id: "agent-3",
+        type: "action",
+        category: "Escalation",
+        title: "Human Handoff",
+        description: "Escalates to human agent",
+        icon: <Zap className="h-4 w-4" />,
+        color: "bg-red-500",
+        config: { department: "support", priority: "normal" },
+        position: { x: 850, y: 150 },
+        connections: [],
+      },
+      {
+        id: "agent-4",
+        type: "agent",
+        category: "LLM",
+        title: "Response Generation",
+        description: "Generates helpful response using AI",
+        icon: <Bot className="h-4 w-4" />,
+        color: "bg-cyan-500",
+        config: { provider: "openai", model: "gpt-4", temperature: 0.7 },
+        position: { x: 1100, y: 50 },
+        connections: [],
+      },
+    ],
+    connections: [
+      { from: "trigger-1", to: "agent-1" },
+      { from: "agent-1", to: "condition-1" },
+      { from: "condition-1", to: "agent-2" },
+      { from: "condition-1", to: "agent-3" },
+      { from: "agent-2", to: "agent-4" },
+    ],
+    status: "draft",
+    lastModified: new Date(),
+  });
+
+  const [selectedStep, setSelectedStep] = useState<WorkflowStep | null>(null);
+  const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
+  const [draggedStep, setDraggedStep] = useState<string | null>(null);
+
+  const stepTemplates = [
     {
-      id: "1",
-      type: "intent",
-      label: "Intent Agent",
-      position: { x: 100, y: 100 },
-      connections: ["2"],
-      config: { threshold: 0.7 },
+      category: "Triggers",
+      items: [
+        {
+          type: "trigger",
+          category: "Message",
+          title: "New Message",
+          description: "When a new message is received",
+          icon: <MessageSquare className="h-4 w-4" />,
+          color: "bg-blue-500",
+        },
+        {
+          type: "trigger",
+          category: "Schedule",
+          title: "Time Schedule",
+          description: "Runs at specific times",
+          icon: <Clock className="h-4 w-4" />,
+          color: "bg-indigo-500",
+        },
+        {
+          type: "trigger",
+          category: "Webhook",
+          title: "API Webhook",
+          description: "External API triggers",
+          icon: <Zap className="h-4 w-4" />,
+          color: "bg-yellow-500",
+        },
+      ],
     },
     {
-      id: "2",
-      type: "retriever",
-      label: "Retriever Agent",
-      position: { x: 300, y: 100 },
-      connections: ["3"],
-      config: { knowledgeBase: "default", topK: 5 },
+      category: "AI Agents",
+      items: [
+        {
+          type: "agent",
+          category: "Intent",
+          title: "Intent Recognition",
+          description: "Analyze user intent",
+          icon: <Brain className="h-4 w-4" />,
+          color: "bg-purple-500",
+        },
+        {
+          type: "agent",
+          category: "Retriever",
+          title: "Knowledge Search",
+          description: "Search knowledge base",
+          icon: <Database className="h-4 w-4" />,
+          color: "bg-green-500",
+        },
+        {
+          type: "agent",
+          category: "LLM",
+          title: "AI Response",
+          description: "Generate AI responses",
+          icon: <Bot className="h-4 w-4" />,
+          color: "bg-cyan-500",
+        },
+        {
+          type: "agent",
+          category: "Formatter",
+          title: "Format Response",
+          description: "Format and structure output",
+          icon: <FileText className="h-4 w-4" />,
+          color: "bg-orange-500",
+        },
+        {
+          type: "agent",
+          category: "Guardrail",
+          title: "Safety Check",
+          description: "Content safety validation",
+          icon: <Shield className="h-4 w-4" />,
+          color: "bg-red-500",
+        },
+      ],
     },
     {
-      id: "3",
-      type: "llm",
-      label: "LLM Agent",
-      position: { x: 500, y: 100 },
-      connections: [],
-      config: { provider: "openai", model: "gpt-4" },
+      category: "Logic & Actions",
+      items: [
+        {
+          type: "condition",
+          category: "Logic",
+          title: "Condition Check",
+          description: "Branch based on conditions",
+          icon: <GitBranch className="h-4 w-4" />,
+          color: "bg-orange-500",
+        },
+        {
+          type: "action",
+          category: "API",
+          title: "API Call",
+          description: "Call external APIs",
+          icon: <Zap className="h-4 w-4" />,
+          color: "bg-pink-500",
+        },
+        {
+          type: "action",
+          category: "Workflow",
+          title: "Sub-Workflow",
+          description: "Execute another workflow",
+          icon: <Workflow className="h-4 w-4" />,
+          color: "bg-violet-500",
+        },
+      ],
     },
-  ]);
-
-  const [connections, setConnections] = useState<Connection[]>([
-    { source: "1", target: "2" },
-    { source: "2", target: "3" },
-  ]);
-
-  const [selectedModule, setSelectedModule] = useState<AgentModule | null>(
-    null,
-  );
-  const [activeTab, setActiveTab] = useState("canvas");
-  const [isDragging, setIsDragging] = useState(false);
-  const [workflowName, setWorkflowName] = useState("New Workflow");
-
-  const moduleTypes = [
-    { type: "intent", label: "Intent Agent", color: "bg-blue-500" },
-    { type: "retriever", label: "Retriever Agent", color: "bg-green-500" },
-    { type: "tool", label: "Tool Agent", color: "bg-yellow-500" },
-    { type: "workflow", label: "Workflow Agent", color: "bg-purple-500" },
-    { type: "memory", label: "Memory Agent", color: "bg-pink-500" },
-    { type: "follow", label: "Follow Agent", color: "bg-indigo-500" },
-    { type: "formatter", label: "Formatter Agent", color: "bg-orange-500" },
-    { type: "guardrail", label: "Guardrail Agent", color: "bg-red-500" },
-    { type: "llm", label: "LLM Agent", color: "bg-cyan-500" },
   ];
 
-  const handleAddModule = (type: string) => {
-    const moduleType = moduleTypes.find((m) => m.type === type);
-    if (!moduleType) return;
+  const handleStepSelect = useCallback((step: WorkflowStep) => {
+    setSelectedStep(step);
+    setIsConfigPanelOpen(true);
+  }, []);
 
-    const newModule: AgentModule = {
-      id: Date.now().toString(),
-      type: moduleType.type as AgentModule["type"],
-      label: moduleType.label,
-      position: { x: 200, y: 200 },
-      connections: [],
+  const handleAddStep = useCallback((template: any) => {
+    const newStep: WorkflowStep = {
+      id: `${template.type}-${Date.now()}`,
+      type: template.type,
+      category: template.category,
+      title: template.title,
+      description: template.description,
+      icon: template.icon,
+      color: template.color,
       config: {},
+      position: { x: 200 + Math.random() * 400, y: 200 + Math.random() * 200 },
+      connections: [],
     };
 
-    setModules([...modules, newModule]);
-    setSelectedModule(newModule);
-  };
+    setWorkflow((prev) => ({
+      ...prev,
+      steps: [...prev.steps, newStep],
+    }));
+    setSelectedStep(newStep);
+    setIsConfigPanelOpen(true);
+  }, []);
 
-  const handleModuleSelect = (module: AgentModule) => {
-    setSelectedModule(module);
-  };
+  const handleDeleteStep = useCallback(
+    (stepId: string) => {
+      setWorkflow((prev) => ({
+        ...prev,
+        steps: prev.steps.filter((step) => step.id !== stepId),
+        connections: prev.connections.filter(
+          (conn) => conn.from !== stepId && conn.to !== stepId,
+        ),
+      }));
+      if (selectedStep?.id === stepId) {
+        setSelectedStep(null);
+        setIsConfigPanelOpen(false);
+      }
+    },
+    [selectedStep],
+  );
 
-  const handleModuleDrag = (id: string, position: { x: number; y: number }) => {
-    setModules(
-      modules.map((module) =>
-        module.id === id ? { ...module, position } : module,
-      ),
-    );
-  };
+  const handleSaveWorkflow = useCallback(() => {
+    console.log("Saving workflow:", workflow);
+    // In a real app, this would save to backend
+  }, [workflow]);
 
-  const handleCreateConnection = (source: string, target: string) => {
-    if (source === target) return;
+  const handleTestWorkflow = useCallback(() => {
+    console.log("Testing workflow:", workflow);
+    // In a real app, this would test the workflow
+  }, [workflow]);
 
-    // Check if connection already exists
-    if (
-      connections.some(
-        (conn) => conn.source === source && conn.target === target,
-      )
-    )
-      return;
+  const renderStepCard = (step: WorkflowStep) => {
+    const isSelected = selectedStep?.id === step.id;
 
-    setConnections([...connections, { source, target }]);
-
-    // Update the source module's connections
-    setModules(
-      modules.map((module) =>
-        module.id === source
-          ? { ...module, connections: [...module.connections, target] }
-          : module,
-      ),
-    );
-  };
-
-  const handleRemoveConnection = (source: string, target: string) => {
-    setConnections(
-      connections.filter(
-        (conn) => !(conn.source === source && conn.target === target),
-      ),
-    );
-
-    // Update the source module's connections
-    setModules(
-      modules.map((module) =>
-        module.id === source
-          ? {
-              ...module,
-              connections: module.connections.filter((id) => id !== target),
-            }
-          : module,
-      ),
-    );
-  };
-
-  const handleRemoveModule = (id: string) => {
-    // Remove all connections involving this module
-    setConnections(
-      connections.filter((conn) => conn.source !== id && conn.target !== id),
-    );
-
-    // Remove the module
-    setModules(modules.filter((module) => module.id !== id));
-
-    // Update connections in other modules
-    setModules((prevModules) =>
-      prevModules.map((module) => ({
-        ...module,
-        connections: module.connections.filter((connId) => connId !== id),
-      })),
-    );
-
-    if (selectedModule?.id === id) {
-      setSelectedModule(null);
-    }
-  };
-
-  const handleUpdateModuleConfig = (key: string, value: any) => {
-    if (!selectedModule) return;
-
-    setModules(
-      modules.map((module) =>
-        module.id === selectedModule.id
-          ? {
-              ...module,
-              config: { ...module.config, [key]: value },
-            }
-          : module,
-      ),
-    );
-
-    setSelectedModule({
-      ...selectedModule,
-      config: { ...selectedModule.config, [key]: value },
-    });
-  };
-
-  const handleSaveWorkflow = () => {
-    // In a real implementation, this would save to backend
-    console.log("Saving workflow:", {
-      name: workflowName,
-      modules,
-      connections,
-    });
-    // Show success message
-    alert("Workflow saved successfully!");
-  };
-
-  const handleTestWorkflow = () => {
-    // In a real implementation, this would test the workflow
-    console.log("Testing workflow...");
-    // Show test result
-    alert("Workflow test completed successfully!");
-  };
-
-  const getModuleColor = (type: string) => {
-    const module = moduleTypes.find((m) => m.type === type);
-    return module ? module.color : "bg-gray-500";
-  };
-
-  const renderCanvas = () => {
     return (
-      <div className="relative w-full h-full overflow-hidden bg-muted/30 border rounded-md">
-        <div className="absolute inset-0 p-4">
-          {/* Render connections */}
-          <svg className="absolute inset-0 pointer-events-none">
-            {connections.map(({ source, target }) => {
-              const sourceModule = modules.find((m) => m.id === source);
-              const targetModule = modules.find((m) => m.id === target);
-
-              if (!sourceModule || !targetModule) return null;
-
-              const x1 = sourceModule.position.x + 100; // Right side of source
-              const y1 = sourceModule.position.y + 40; // Middle of source
-              const x2 = targetModule.position.x; // Left side of target
-              const y2 = targetModule.position.y + 40; // Middle of target
-
-              return (
-                <g key={`${source}-${target}`}>
-                  <path
-                    d={`M${x1},${y1} C${x1 + 50},${y1} ${x2 - 50},${y2} ${x2},${y2}`}
-                    stroke="#888"
-                    strokeWidth="2"
-                    fill="none"
-                    markerEnd="url(#arrowhead)"
-                  />
-                  <defs>
-                    <marker
-                      id="arrowhead"
-                      markerWidth="10"
-                      markerHeight="7"
-                      refX="9"
-                      refY="3.5"
-                      orient="auto"
-                    >
-                      <polygon points="0 0, 10 3.5, 0 7" fill="#888" />
-                    </marker>
-                  </defs>
-                </g>
-              );
-            })}
-          </svg>
-
-          {/* Render modules */}
-          {modules.map((module) => (
-            <motion.div
-              key={module.id}
-              className={`absolute cursor-move ${
-                selectedModule?.id === module.id ? "ring-2 ring-blue-500" : ""
-              }`}
-              style={{
-                left: module.position.x,
-                top: module.position.y,
-                width: 200,
-                zIndex: selectedModule?.id === module.id ? 10 : 1,
-              }}
-              drag
-              dragMomentum={false}
-              onDragStart={() => setIsDragging(true)}
-              onDragEnd={() => setIsDragging(false)}
-              onDrag={(_, info) => {
-                handleModuleDrag(module.id, {
-                  x: module.position.x + info.delta.x,
-                  y: module.position.y + info.delta.y,
-                });
-              }}
-              onClick={() => !isDragging && handleModuleSelect(module)}
-            >
-              <Card className="shadow-md hover:shadow-lg transition-shadow bg-background">
-                <div
-                  className={`${getModuleColor(module.type)} h-2 w-full rounded-t-lg`}
-                />
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-medium text-sm truncate pr-2">
-                      {module.label}
-                    </h3>
-                    <div className="flex space-x-1 flex-shrink-0">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveModule(module.id);
-                              }}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Remove module</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-2">
-                    {Object.entries(module.config).length > 0 ? (
-                      <div className="space-y-1">
-                        {Object.entries(module.config)
-                          .slice(0, 2)
-                          .map(([key, value]) => (
-                            <div key={key} className="truncate">
-                              <span className="font-medium">{key}:</span>{" "}
-                              <span className="text-muted-foreground/80">
-                                {typeof value === "object"
-                                  ? JSON.stringify(value)
-                                  : value.toString()}
-                              </span>
-                            </div>
-                          ))}
-                        {Object.entries(module.config).length > 2 && (
-                          <div className="text-muted-foreground/60">...</div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground/60">
-                        Click to configure
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      <motion.div
+        key={step.id}
+        layout
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className={cn(
+          "absolute cursor-pointer transition-all duration-200",
+          isSelected && "ring-2 ring-primary ring-offset-2",
+        )}
+        style={{
+          left: step.position.x,
+          top: step.position.y,
+          width: 240,
+        }}
+        onClick={() => handleStepSelect(step)}
+        drag
+        dragMomentum={false}
+        onDragStart={() => setDraggedStep(step.id)}
+        onDragEnd={(_, info) => {
+          setDraggedStep(null);
+          setWorkflow((prev) => ({
+            ...prev,
+            steps: prev.steps.map((s) =>
+              s.id === step.id
+                ? {
+                    ...s,
+                    position: {
+                      x: s.position.x + info.offset.x,
+                      y: s.position.y + info.offset.y,
+                    },
+                  }
+                : s,
+            ),
+          }));
+        }}
+      >
+        <Card className="shadow-lg hover:shadow-xl transition-shadow bg-background border-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className={cn("p-2 rounded-lg text-white", step.color)}>
+                  {step.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-sm font-semibold truncate">
+                    {step.title}
+                  </CardTitle>
+                  <Badge variant="secondary" className="text-xs mt-1">
+                    {step.category}
+                  </Badge>
+                </div>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleStepSelect(step)}>
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Configure
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteStep(step.id)}
+                    className="text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {step.description}
+            </p>
+            {Object.keys(step.config).length > 0 && (
+              <div className="mt-3 pt-3 border-t">
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(step.config)
+                    .slice(0, 2)
+                    .map(([key, value]) => (
+                      <Badge key={key} variant="outline" className="text-xs">
+                        {key}: {String(value).slice(0, 10)}
+                      </Badge>
+                    ))}
+                  {Object.keys(step.config).length > 2 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{Object.keys(step.config).length - 2} more
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     );
   };
 
-  const renderPropertiesPanel = () => {
-    if (!selectedModule) {
-      return (
-        <div className="p-6 text-center">
-          <div className="flex flex-col items-center space-y-3">
-            <div className="rounded-full bg-muted p-3">
-              <Settings className="h-6 w-6 text-muted-foreground" />
+  const renderConnections = () => {
+    return (
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        style={{ zIndex: 1 }}
+      >
+        <defs>
+          <marker
+            id="arrowhead"
+            markerWidth="10"
+            markerHeight="7"
+            refX="9"
+            refY="3.5"
+            orient="auto"
+          >
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+          </marker>
+        </defs>
+        {workflow.connections.map(({ from, to }) => {
+          const fromStep = workflow.steps.find((s) => s.id === from);
+          const toStep = workflow.steps.find((s) => s.id === to);
+
+          if (!fromStep || !toStep) return null;
+
+          const x1 = fromStep.position.x + 240;
+          const y1 = fromStep.position.y + 60;
+          const x2 = toStep.position.x;
+          const y2 = toStep.position.y + 60;
+
+          const midX = (x1 + x2) / 2;
+
+          return (
+            <path
+              key={`${from}-${to}`}
+              d={`M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`}
+              stroke="#6b7280"
+              strokeWidth="2"
+              fill="none"
+              markerEnd="url(#arrowhead)"
+              className="transition-all duration-200"
+            />
+          );
+        })}
+      </svg>
+    );
+  };
+
+  const renderConfigPanel = () => {
+    if (!selectedStep) return null;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div
+              className={cn("p-2 rounded-lg text-white", selectedStep.color)}
+            >
+              {selectedStep.icon}
             </div>
             <div>
-              <h3 className="font-medium">No Module Selected</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Select a module from the canvas to configure its properties
+              <h3 className="font-semibold">{selectedStep.title}</h3>
+              <p className="text-sm text-muted-foreground">
+                {selectedStep.category}
               </p>
             </div>
           </div>
-        </div>
-      );
-    }
-
-    const renderConfigFields = () => {
-      switch (selectedModule.type) {
-        case "intent":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="threshold">Confidence Threshold</Label>
-                <Input
-                  id="threshold"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={selectedModule.config.threshold || 0.7}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "threshold",
-                      parseFloat(e.target.value),
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="intentModel">Intent Model</Label>
-                <Select
-                  value={selectedModule.config.intentModel || "default"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("intentModel", value)
-                  }
-                >
-                  <SelectTrigger id="intentModel">
-                    <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default Classifier</SelectItem>
-                    <SelectItem value="custom">Custom Classifier</SelectItem>
-                    <SelectItem value="llm">LLM-based</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          );
-
-        case "retriever":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="knowledgeBase">Knowledge Base</Label>
-                <Select
-                  value={selectedModule.config.knowledgeBase || "default"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("knowledgeBase", value)
-                  }
-                >
-                  <SelectTrigger id="knowledgeBase">
-                    <SelectValue placeholder="Select knowledge base" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default KB</SelectItem>
-                    <SelectItem value="product">
-                      Product Documentation
-                    </SelectItem>
-                    <SelectItem value="support">Support Articles</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="topK">Top K Results</Label>
-                <Input
-                  id="topK"
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={selectedModule.config.topK || 5}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig("topK", parseInt(e.target.value))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="similarityThreshold">
-                  Similarity Threshold
-                </Label>
-                <Input
-                  id="similarityThreshold"
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={selectedModule.config.similarityThreshold || 0.75}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "similarityThreshold",
-                      parseFloat(e.target.value),
-                    )
-                  }
-                />
-              </div>
-            </>
-          );
-
-        case "tool":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="apiEndpoint">API Endpoint</Label>
-                <Select
-                  value={selectedModule.config.apiEndpoint || ""}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("apiEndpoint", value)
-                  }
-                >
-                  <SelectTrigger id="apiEndpoint">
-                    <SelectValue placeholder="Select API endpoint" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weather">Weather API</SelectItem>
-                    <SelectItem value="crm">CRM API</SelectItem>
-                    <SelectItem value="calendar">Calendar API</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="authType">Authentication Type</Label>
-                <Select
-                  value={selectedModule.config.authType || "none"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("authType", value)
-                  }
-                >
-                  <SelectTrigger id="authType">
-                    <SelectValue placeholder="Select auth type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="apiKey">API Key</SelectItem>
-                    <SelectItem value="oauth">OAuth</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          );
-
-        case "llm":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="provider">LLM Provider</Label>
-                <Select
-                  value={selectedModule.config.provider || "openai"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("provider", value)
-                  }
-                >
-                  <SelectTrigger id="provider">
-                    <SelectValue placeholder="Select provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="anthropic">Anthropic</SelectItem>
-                    <SelectItem value="google">Google</SelectItem>
-                    <SelectItem value="groq">Groq</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="model">Model</Label>
-                <Select
-                  value={selectedModule.config.model || "gpt-4"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("model", value)
-                  }
-                >
-                  <SelectTrigger id="model">
-                    <SelectValue placeholder="Select model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4">GPT-4</SelectItem>
-                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                    <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
-                    <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="temperature">Temperature</Label>
-                <Input
-                  id="temperature"
-                  type="number"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={selectedModule.config.temperature || 0.7}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "temperature",
-                      parseFloat(e.target.value),
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxTokens">Max Tokens</Label>
-                <Input
-                  id="maxTokens"
-                  type="number"
-                  min="1"
-                  max="8192"
-                  value={selectedModule.config.maxTokens || 1024}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "maxTokens",
-                      parseInt(e.target.value),
-                    )
-                  }
-                />
-              </div>
-            </>
-          );
-
-        case "formatter":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="template">Template</Label>
-                <Select
-                  value={selectedModule.config.template || "default"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("template", value)
-                  }
-                >
-                  <SelectTrigger id="template">
-                    <SelectValue placeholder="Select template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Default Template</SelectItem>
-                    <SelectItem value="customer-service">
-                      Customer Service
-                    </SelectItem>
-                    <SelectItem value="technical-support">
-                      Technical Support
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="promptTemplate">Prompt Template</Label>
-                <Textarea
-                  id="promptTemplate"
-                  rows={5}
-                  value={selectedModule.config.promptTemplate || ""}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig("promptTemplate", e.target.value)
-                  }
-                  placeholder="Enter prompt template..."
-                />
-              </div>
-            </>
-          );
-
-        case "guardrail":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="contentPolicy">Content Policy</Label>
-                <Select
-                  value={selectedModule.config.contentPolicy || "standard"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("contentPolicy", value)
-                  }
-                >
-                  <SelectTrigger id="contentPolicy">
-                    <SelectValue placeholder="Select policy" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="strict">Strict</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center space-x-2 py-2">
-                <Switch
-                  id="piiFilter"
-                  checked={selectedModule.config.piiFilter || false}
-                  onCheckedChange={(checked) =>
-                    handleUpdateModuleConfig("piiFilter", checked)
-                  }
-                />
-                <Label htmlFor="piiFilter">PII Filter</Label>
-              </div>
-              <div className="flex items-center space-x-2 py-2">
-                <Switch
-                  id="toxicityFilter"
-                  checked={selectedModule.config.toxicityFilter || false}
-                  onCheckedChange={(checked) =>
-                    handleUpdateModuleConfig("toxicityFilter", checked)
-                  }
-                />
-                <Label htmlFor="toxicityFilter">Toxicity Filter</Label>
-              </div>
-            </>
-          );
-
-        case "memory":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="memoryType">Memory Type</Label>
-                <Select
-                  value={selectedModule.config.memoryType || "conversation"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("memoryType", value)
-                  }
-                >
-                  <SelectTrigger id="memoryType">
-                    <SelectValue placeholder="Select memory type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="conversation">Conversation</SelectItem>
-                    <SelectItem value="summary">Summary</SelectItem>
-                    <SelectItem value="vector">Vector</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="windowSize">Window Size</Label>
-                <Input
-                  id="windowSize"
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={selectedModule.config.windowSize || 10}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "windowSize",
-                      parseInt(e.target.value),
-                    )
-                  }
-                />
-              </div>
-              <div className="flex items-center space-x-2 py-2">
-                <Switch
-                  id="persistMemory"
-                  checked={selectedModule.config.persistMemory || false}
-                  onCheckedChange={(checked) =>
-                    handleUpdateModuleConfig("persistMemory", checked)
-                  }
-                />
-                <Label htmlFor="persistMemory">Persist Memory</Label>
-              </div>
-            </>
-          );
-
-        case "workflow":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="workflowType">Workflow Type</Label>
-                <Select
-                  value={selectedModule.config.workflowType || "sequential"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("workflowType", value)
-                  }
-                >
-                  <SelectTrigger id="workflowType">
-                    <SelectValue placeholder="Select workflow type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sequential">Sequential</SelectItem>
-                    <SelectItem value="conditional">Conditional</SelectItem>
-                    <SelectItem value="parallel">Parallel</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subWorkflow">Sub-Workflow</Label>
-                <Select
-                  value={selectedModule.config.subWorkflow || ""}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("subWorkflow", value)
-                  }
-                >
-                  <SelectTrigger id="subWorkflow">
-                    <SelectValue placeholder="Select sub-workflow" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    <SelectItem value="customer-onboarding">
-                      Customer Onboarding
-                    </SelectItem>
-                    <SelectItem value="support-ticket">
-                      Support Ticket
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </>
-          );
-
-        case "follow":
-          return (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="followUpType">Follow-up Type</Label>
-                <Select
-                  value={selectedModule.config.followUpType || "automatic"}
-                  onValueChange={(value) =>
-                    handleUpdateModuleConfig("followUpType", value)
-                  }
-                >
-                  <SelectTrigger id="followUpType">
-                    <SelectValue placeholder="Select follow-up type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="automatic">Automatic</SelectItem>
-                    <SelectItem value="conditional">Conditional</SelectItem>
-                    <SelectItem value="manual">Manual</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="followUpDelay">Follow-up Delay (minutes)</Label>
-                <Input
-                  id="followUpDelay"
-                  type="number"
-                  min="0"
-                  max="1440"
-                  value={selectedModule.config.followUpDelay || 5}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "followUpDelay",
-                      parseInt(e.target.value),
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="maxFollowUps">Max Follow-ups</Label>
-                <Input
-                  id="maxFollowUps"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={selectedModule.config.maxFollowUps || 3}
-                  onChange={(e) =>
-                    handleUpdateModuleConfig(
-                      "maxFollowUps",
-                      parseInt(e.target.value),
-                    )
-                  }
-                />
-              </div>
-              <div className="flex items-center space-x-2 py-2">
-                <Switch
-                  id="contextAware"
-                  checked={selectedModule.config.contextAware || false}
-                  onCheckedChange={(checked) =>
-                    handleUpdateModuleConfig("contextAware", checked)
-                  }
-                />
-                <Label htmlFor="contextAware">Context Aware</Label>
-              </div>
-            </>
-          );
-
-        default:
-          return (
-            <div className="text-center text-muted-foreground">
-              <p>No configuration options available</p>
-            </div>
-          );
-      }
-    };
-
-    return (
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium">
-            {selectedModule.label} Properties
-          </h3>
-          <div className="flex items-center space-x-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedModule(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Close properties panel</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsConfigPanelOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
         <Separator />
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="moduleLabel">Label</Label>
+            <Label htmlFor="step-title">Title</Label>
             <Input
-              id="moduleLabel"
-              value={selectedModule.label}
+              id="step-title"
+              value={selectedStep.title}
               onChange={(e) => {
-                const newLabel = e.target.value;
-                setModules(
-                  modules.map((module) =>
-                    module.id === selectedModule.id
-                      ? { ...module, label: newLabel }
-                      : module,
+                const newTitle = e.target.value;
+                setWorkflow((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((step) =>
+                    step.id === selectedStep.id
+                      ? { ...step, title: newTitle }
+                      : step,
                   ),
-                );
-                setSelectedModule({ ...selectedModule, label: newLabel });
+                }));
+                setSelectedStep({ ...selectedStep, title: newTitle });
               }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="step-description">Description</Label>
+            <Textarea
+              id="step-description"
+              value={selectedStep.description}
+              onChange={(e) => {
+                const newDescription = e.target.value;
+                setWorkflow((prev) => ({
+                  ...prev,
+                  steps: prev.steps.map((step) =>
+                    step.id === selectedStep.id
+                      ? { ...step, description: newDescription }
+                      : step,
+                  ),
+                }));
+                setSelectedStep({
+                  ...selectedStep,
+                  description: newDescription,
+                });
+              }}
+              rows={3}
             />
           </div>
 
@@ -933,82 +575,263 @@ const WorkflowBuilder = () => {
 
           <div className="space-y-4">
             <h4 className="font-medium">Configuration</h4>
-            {renderConfigFields()}
-          </div>
 
-          <Separator />
-
-          <div className="space-y-2">
-            <h4 className="font-medium">Connections</h4>
-            {modules.filter((m) => m.id !== selectedModule.id).length > 0 ? (
-              <div className="space-y-2">
-                <Label htmlFor="connections">Connect to:</Label>
-                <Select
-                  onValueChange={(value) => {
-                    if (value) handleCreateConnection(selectedModule.id, value);
-                  }}
-                >
-                  <SelectTrigger id="connections">
-                    <SelectValue placeholder="Select module" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {modules
-                      .filter(
-                        (m) =>
-                          m.id !== selectedModule.id &&
-                          !selectedModule.connections.includes(m.id),
-                      )
-                      .map((module) => (
-                        <SelectItem key={module.id} value={module.id}>
-                          {module.label}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-
-                {selectedModule.connections.length > 0 && (
-                  <div className="mt-2">
-                    <Label>Current connections:</Label>
-                    <div className="mt-1 space-y-1">
-                      {selectedModule.connections.map((connId) => {
-                        const connModule = modules.find((m) => m.id === connId);
-                        if (!connModule) return null;
-
-                        return (
-                          <div
-                            key={connId}
-                            className="flex items-center justify-between bg-muted p-2 rounded-md"
-                          >
-                            <div className="flex items-center">
-                              <ArrowRight className="h-3 w-3 mr-2" />
-                              <span className="text-sm">
-                                {connModule.label}
-                              </span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() =>
-                                handleRemoveConnection(
-                                  selectedModule.id,
-                                  connId,
-                                )
-                              }
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
+            {selectedStep.type === "agent" &&
+              selectedStep.category === "Intent" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Confidence Threshold</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={selectedStep.config.threshold || 0.8}
+                      onChange={(e) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          threshold: parseFloat(e.target.value),
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    />
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <Label>Model</Label>
+                    <Select
+                      value={selectedStep.config.model || "intent-classifier"}
+                      onValueChange={(value) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          model: value,
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="intent-classifier">
+                          Intent Classifier
+                        </SelectItem>
+                        <SelectItem value="custom-model">
+                          Custom Model
+                        </SelectItem>
+                        <SelectItem value="llm-based">LLM-based</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
+            {selectedStep.type === "agent" &&
+              selectedStep.category === "LLM" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Provider</Label>
+                    <Select
+                      value={selectedStep.config.provider || "openai"}
+                      onValueChange={(value) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          provider: value,
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="anthropic">Anthropic</SelectItem>
+                        <SelectItem value="google">Google</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Model</Label>
+                    <Select
+                      value={selectedStep.config.model || "gpt-4"}
+                      onValueChange={(value) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          model: value,
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gpt-4">GPT-4</SelectItem>
+                        <SelectItem value="gpt-3.5-turbo">
+                          GPT-3.5 Turbo
+                        </SelectItem>
+                        <SelectItem value="claude-3-opus">
+                          Claude 3 Opus
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Temperature</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={selectedStep.config.temperature || 0.7}
+                      onChange={(e) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          temperature: parseFloat(e.target.value),
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+
+            {selectedStep.type === "agent" &&
+              selectedStep.category === "Retriever" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Knowledge Base</Label>
+                    <Select
+                      value={
+                        selectedStep.config.knowledgeBase || "support-docs"
+                      }
+                      onValueChange={(value) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          knowledgeBase: value,
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="support-docs">
+                          Support Documentation
+                        </SelectItem>
+                        <SelectItem value="product-info">
+                          Product Information
+                        </SelectItem>
+                        <SelectItem value="faq">FAQ Database</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Top K Results</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={selectedStep.config.topK || 5}
+                      onChange={(e) => {
+                        const newConfig = {
+                          ...selectedStep.config,
+                          topK: parseInt(e.target.value),
+                        };
+                        setWorkflow((prev) => ({
+                          ...prev,
+                          steps: prev.steps.map((step) =>
+                            step.id === selectedStep.id
+                              ? { ...step, config: newConfig }
+                              : step,
+                          ),
+                        }));
+                        setSelectedStep({ ...selectedStep, config: newConfig });
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+
+            {selectedStep.type === "condition" && (
+              <div className="space-y-2">
+                <Label>Condition Logic</Label>
+                <Textarea
+                  placeholder="Define your conditions here..."
+                  value={JSON.stringify(
+                    selectedStep.config.conditions || [],
+                    null,
+                    2,
+                  )}
+                  onChange={(e) => {
+                    try {
+                      const conditions = JSON.parse(e.target.value);
+                      const newConfig = { ...selectedStep.config, conditions };
+                      setWorkflow((prev) => ({
+                        ...prev,
+                        steps: prev.steps.map((step) =>
+                          step.id === selectedStep.id
+                            ? { ...step, config: newConfig }
+                            : step,
+                        ),
+                      }));
+                      setSelectedStep({ ...selectedStep, config: newConfig });
+                    } catch (e) {
+                      // Invalid JSON, ignore
+                    }
+                  }}
+                  rows={4}
+                />
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No other modules available for connection
-              </p>
             )}
           </div>
         </div>
@@ -1017,132 +840,152 @@ const WorkflowBuilder = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Toolbar */}
-      <div className="border-b p-4 bg-card">
+    <div className="h-screen bg-background flex flex-col">
+      {/* Workflow Header */}
+      <div className="border-b bg-card px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor="workflowName" className="text-sm font-medium">
-                Workflow:
-              </Label>
+            <div>
               <Input
-                id="workflowName"
-                value={workflowName}
-                onChange={(e) => setWorkflowName(e.target.value)}
-                className="text-base font-medium h-9 w-64 border-dashed"
-                placeholder="Enter workflow name..."
+                value={workflow.name}
+                onChange={(e) =>
+                  setWorkflow((prev) => ({ ...prev, name: e.target.value }))
+                }
+                className="text-xl font-bold border-none px-0 h-auto bg-transparent focus-visible:ring-0"
+                placeholder="Workflow name..."
               />
-            </div>
-            <Separator orientation="vertical" className="h-6" />
-            <div className="flex items-center space-x-2">
-              <Button variant="default" size="sm" onClick={handleSaveWorkflow}>
-                <Save className="h-4 w-4 mr-2" />
-                Save
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleTestWorkflow}>
-                <Play className="h-4 w-4 mr-2" />
-                Test
-              </Button>
+              <p className="text-sm text-muted-foreground mt-1">
+                {workflow.description}
+              </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
+          <div className="flex items-center space-x-3">
+            <Badge
+              variant={workflow.status === "active" ? "default" : "secondary"}
+              className="capitalize"
+            >
+              {workflow.status}
+            </Badge>
+            <Button variant="outline" size="sm" onClick={handleTestWorkflow}>
+              <Play className="h-4 w-4 mr-2" />
+              Test
+            </Button>
+            <Button size="sm" onClick={handleSaveWorkflow}>
+              <Save className="h-4 w-4 mr-2" />
+              Save
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal">
-          {/* Module palette */}
-          <ResizablePanel defaultSize={15} minSize={10} maxSize={20}>
-            <div className="h-full border-r bg-card">
-              <div className="p-4">
-                <h3 className="font-medium mb-3 text-sm text-muted-foreground uppercase tracking-wide">
-                  Agent Modules
-                </h3>
-                <ScrollArea className="h-[calc(100vh-200px)]">
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Step Templates Sidebar */}
+        <div className="w-80 border-r bg-card flex flex-col">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold text-sm">Workflow Components</h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Drag components to build your workflow
+            </p>
+          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-6">
+              {stepTemplates.map((category) => (
+                <div key={category.category}>
+                  <h4 className="font-medium text-sm mb-3 text-muted-foreground uppercase tracking-wide">
+                    {category.category}
+                  </h4>
                   <div className="space-y-2">
-                    {moduleTypes.map((moduleType) => (
-                      <TooltipProvider key={moduleType.type}>
+                    {category.items.map((template, index) => (
+                      <TooltipProvider key={index}>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start h-auto p-3 hover:bg-accent"
-                              onClick={() => handleAddModule(moduleType.type)}
+                            <Card
+                              className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50"
+                              onClick={() => handleAddStep(template)}
                             >
-                              <div className="flex items-center w-full">
-                                <div
-                                  className={`${moduleType.color} h-3 w-3 rounded-full mr-3 flex-shrink-0`}
-                                />
-                                <span className="text-sm truncate">
-                                  {moduleType.label}
-                                </span>
-                              </div>
-                            </Button>
+                              <CardContent className="p-3">
+                                <div className="flex items-center space-x-3">
+                                  <div
+                                    className={cn(
+                                      "p-2 rounded-lg text-white flex-shrink-0",
+                                      template.color,
+                                    )}
+                                  >
+                                    {template.icon}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h5 className="font-medium text-sm truncate">
+                                      {template.title}
+                                    </h5>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {template.description}
+                                    </p>
+                                  </div>
+                                  <Plus className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                </div>
+                              </CardContent>
+                            </Card>
                           </TooltipTrigger>
                           <TooltipContent side="right">
-                            <p>Add {moduleType.label}</p>
+                            <p>Click to add {template.title}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     ))}
                   </div>
-                </ScrollArea>
-              </div>
+                </div>
+              ))}
             </div>
-          </ResizablePanel>
+          </ScrollArea>
+        </div>
 
-          <ResizableHandle withHandle />
+        {/* Canvas */}
+        <div className="flex-1 relative overflow-hidden">
+          <div className="absolute inset-0 bg-muted/20">
+            {/* Grid Pattern */}
+            <div
+              className="absolute inset-0 opacity-30"
+              style={{
+                backgroundImage: `
+                  radial-gradient(circle, #e5e7eb 1px, transparent 1px)
+                `,
+                backgroundSize: "20px 20px",
+              }}
+            />
 
-          {/* Canvas area */}
-          <ResizablePanel defaultSize={60}>
-            <Tabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="h-full flex flex-col"
+            {/* Workflow Steps */}
+            <div
+              className="relative h-full w-full"
+              style={{ minHeight: "2000px", minWidth: "2000px" }}
             >
-              <div className="border-b px-4 py-2 bg-card">
-                <TabsList className="grid w-full grid-cols-2 max-w-[200px]">
-                  <TabsTrigger value="canvas" className="text-sm">
-                    Canvas
-                  </TabsTrigger>
-                  <TabsTrigger value="json" className="text-sm">
-                    JSON
-                  </TabsTrigger>
-                </TabsList>
-              </div>
-              <TabsContent value="canvas" className="flex-1 p-4">
-                {renderCanvas()}
-              </TabsContent>
-              <TabsContent value="json" className="flex-1 p-4">
-                <ScrollArea className="h-full w-full rounded-md border bg-muted/30">
-                  <div className="p-4">
-                    <pre className="text-sm font-mono">
-                      {JSON.stringify({ modules, connections }, null, 2)}
-                    </pre>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          {/* Properties panel */}
-          <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-            <div className="h-full border-l bg-card">
-              <ScrollArea className="h-full">
-                {renderPropertiesPanel()}
-              </ScrollArea>
+              {renderConnections()}
+              <AnimatePresence>
+                {workflow.steps.map(renderStepCard)}
+              </AnimatePresence>
             </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </div>
+        </div>
+
+        {/* Configuration Panel */}
+        <AnimatePresence>
+          {isConfigPanelOpen && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 400, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="border-l bg-card overflow-hidden"
+            >
+              <div className="p-4 border-b">
+                <h3 className="font-semibold text-sm">Configuration</h3>
+              </div>
+              <ScrollArea className="h-full">
+                <div className="p-4">{renderConfigPanel()}</div>
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

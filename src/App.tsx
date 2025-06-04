@@ -51,14 +51,7 @@ function App() {
               </DashboardLayout>
             }
           />
-          <Route
-            path="/widgets"
-            element={
-              <DashboardLayout>
-                <WidgetGenerator />
-              </DashboardLayout>
-            }
-          />
+          <Route path="/widgets" element={<WidgetGenerator />} />
           <Route
             path="/apis"
             element={

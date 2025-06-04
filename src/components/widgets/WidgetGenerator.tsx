@@ -117,6 +117,7 @@ const WidgetGenerator = () => {
   >("desktop");
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [isWidgetOpen, setIsWidgetOpen] = useState(true);
+  const [isWidgetMinimized, setIsWidgetMinimized] = useState(false);
   const [userMessage, setUserMessage] = useState("");
 
   const workflows = [
@@ -186,8 +187,13 @@ const WidgetGenerator = () => {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
+      e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const applyTheme = (theme: "light" | "dark" | "auto") => {
+    updateConfig("appearance", "theme", theme);
   };
 
   return (
@@ -594,7 +600,7 @@ const WidgetGenerator = () => {
                     ? "w-[320px] h-[568px] mx-auto"
                     : previewDevice === "tablet"
                       ? "w-full max-w-[400px] h-[500px] mx-auto"
-                      : "w-full h-[400px]"
+                      : "w-full h-[500px]"
                 }`}
               >
                 <div className="p-4 h-full">
@@ -640,12 +646,20 @@ const WidgetGenerator = () => {
                     {/* Chat Widget (when open) */}
                     {isWidgetOpen && (
                       <div
-                        className={`bg-white border shadow-lg overflow-hidden ${
+                        className={`bg-white border shadow-lg overflow-hidden transition-all duration-200 ${
                           config.appearance.size === "small"
-                            ? "w-64 h-80"
+                            ? "w-64"
                             : config.appearance.size === "large"
-                              ? "w-80 h-96"
-                              : "w-72 h-[400px]"
+                              ? "w-80"
+                              : "w-72"
+                        } ${
+                          isWidgetMinimized
+                            ? "h-12"
+                            : config.appearance.size === "small"
+                              ? "h-80"
+                              : config.appearance.size === "large"
+                                ? "h-96"
+                                : "h-[400px]"
                         }`}
                         style={{
                           borderRadius: `${config.appearance.borderRadius}px`,
@@ -668,7 +682,12 @@ const WidgetGenerator = () => {
                             </span>
                           </div>
                           <div className="flex items-center space-x-1">
-                            <button className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded flex items-center justify-center transition-colors">
+                            <button
+                              onClick={() =>
+                                setIsWidgetMinimized(!isWidgetMinimized)
+                              }
+                              className="w-6 h-6 bg-white/20 hover:bg-white/30 rounded flex items-center justify-center transition-colors"
+                            >
                               <Minus className="w-3 h-3" />
                             </button>
                             <button
@@ -681,36 +700,9 @@ const WidgetGenerator = () => {
                         </div>
 
                         {/* Widget Content */}
-                        <div className="p-4 space-y-3 flex-1 overflow-y-auto bg-gray-50 h-[280px]">
-                          {/* AI Greeting */}
-                          <div className="flex items-start space-x-2">
-                            <div
-                              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                              style={{
-                                backgroundColor: config.appearance.primaryColor,
-                              }}
-                            >
-                              AI
-                            </div>
-                            <div className="bg-white rounded-lg p-3 text-sm shadow-sm max-w-[200px]">
-                              {config.behavior.greeting}
-                            </div>
-                          </div>
-
-                          {/* User Message */}
-                          <div className="flex justify-end">
-                            <div
-                              className="text-white rounded-lg p-3 text-sm max-w-[200px] shadow-sm"
-                              style={{
-                                backgroundColor: config.appearance.primaryColor,
-                              }}
-                            >
-                              Hello! I need help with my account.
-                            </div>
-                          </div>
-
-                          {/* Typing Indicator */}
-                          {showTypingIndicator && (
+                        {!isWidgetMinimized && (
+                          <div className="p-4 space-y-3 flex-1 overflow-y-auto bg-gray-50 h-[280px]">
+                            {/* AI Greeting */}
                             <div className="flex items-start space-x-2">
                               <div
                                 className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
@@ -721,83 +713,120 @@ const WidgetGenerator = () => {
                               >
                                 AI
                               </div>
-                              <div className="bg-white rounded-lg p-3 shadow-sm">
-                                <div className="flex space-x-1">
-                                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                  <div
-                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                    style={{ animationDelay: "0.1s" }}
-                                  ></div>
-                                  <div
-                                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                                    style={{ animationDelay: "0.2s" }}
-                                  ></div>
-                                </div>
+                              <div className="bg-white rounded-lg p-3 text-sm shadow-sm max-w-[200px]">
+                                {config.behavior.greeting}
                               </div>
                             </div>
-                          )}
-                        </div>
 
-                        {/* Widget Input */}
-                        <div className="p-3 border-t bg-white">
-                          <div className="flex items-center space-x-2">
-                            {/* File Upload Button */}
-                            {config.behavior.enableFileUpload && (
-                              <button className="p-2 text-gray-500 hover:text-gray-700 transition-colors rounded">
-                                <Paperclip className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {/* Input Field */}
-                            <div className="flex-1 relative">
-                              <input
-                                type="text"
-                                placeholder={config.behavior.placeholder}
-                                value={userMessage}
-                                onChange={(e) => setUserMessage(e.target.value)}
-                                onKeyPress={handleKeyPress}
-                                className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:border-blue-500 focus:outline-none transition-colors pr-10"
+                            {/* User Message */}
+                            <div className="flex justify-end">
+                              <div
+                                className="text-white rounded-lg p-3 text-sm max-w-[200px] shadow-sm"
                                 style={{
-                                  borderRadius: `${config.appearance.borderRadius}px`,
-                                  fontFamily: config.appearance.fontFamily,
-                                }}
-                              />
-
-                              {/* Voice Input Button */}
-                              {config.behavior.enableVoice && (
-                                <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                                  <Mic className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Send Button */}
-                            <button
-                              onClick={handleSendMessage}
-                              className="p-2 text-white rounded-lg hover:opacity-90 transition-opacity"
-                              style={{
-                                backgroundColor: config.appearance.primaryColor,
-                                borderRadius: `${config.appearance.borderRadius}px`,
-                              }}
-                            >
-                              <Send className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {config.behavior.showBranding && (
-                            <div className="text-xs text-gray-500 mt-2 text-center">
-                              <span>Powered by </span>
-                              <span
-                                className="font-semibold"
-                                style={{
-                                  color: config.appearance.primaryColor,
+                                  backgroundColor:
+                                    config.appearance.primaryColor,
                                 }}
                               >
-                                Axient
-                              </span>
+                                Hello! I need help with my account.
+                              </div>
                             </div>
-                          )}
-                        </div>
+
+                            {/* Typing Indicator */}
+                            {showTypingIndicator && (
+                              <div className="flex items-start space-x-2">
+                                <div
+                                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                                  style={{
+                                    backgroundColor:
+                                      config.appearance.primaryColor,
+                                  }}
+                                >
+                                  AI
+                                </div>
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="flex space-x-1">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                    <div
+                                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                      style={{ animationDelay: "0.1s" }}
+                                    ></div>
+                                    <div
+                                      className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                                      style={{ animationDelay: "0.2s" }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Widget Input */}
+                        {!isWidgetMinimized && (
+                          <div className="p-3 border-t bg-white">
+                            <div className="flex items-center space-x-2">
+                              {/* File Upload Button */}
+                              {config.behavior.enableFileUpload && (
+                                <button className="p-2 text-gray-500 hover:text-gray-700 transition-colors rounded">
+                                  <Paperclip className="w-4 h-4" />
+                                </button>
+                              )}
+
+                              {/* Input Field */}
+                              <div className="flex-1 relative">
+                                <input
+                                  type="text"
+                                  placeholder={config.behavior.placeholder}
+                                  value={userMessage}
+                                  onChange={(e) =>
+                                    setUserMessage(e.target.value)
+                                  }
+                                  onKeyDown={handleKeyPress}
+                                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:border-blue-500 focus:outline-none transition-colors pr-10"
+                                  style={{
+                                    borderRadius: `${config.appearance.borderRadius}px`,
+                                    fontFamily: config.appearance.fontFamily,
+                                  }}
+                                  disabled={false}
+                                />
+
+                                {/* Voice Input Button */}
+                                {config.behavior.enableVoice && (
+                                  <button className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors">
+                                    <Mic className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Send Button */}
+                              <button
+                                onClick={handleSendMessage}
+                                className="p-2 text-white rounded-lg hover:opacity-90 transition-opacity"
+                                style={{
+                                  backgroundColor:
+                                    config.appearance.primaryColor,
+                                  borderRadius: `${config.appearance.borderRadius}px`,
+                                }}
+                              >
+                                <Send className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {config.behavior.showBranding && (
+                              <div className="text-xs text-gray-500 mt-2 text-center">
+                                <span>Powered by </span>
+                                <span
+                                  className="font-semibold"
+                                  style={{
+                                    color: config.appearance.primaryColor,
+                                  }}
+                                >
+                                  Axient
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
