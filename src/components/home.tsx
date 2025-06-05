@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import AnimatedDemoTrigger from "@/components/tutorial/AnimatedDemoTrigger";
 import {
   Bot,
   Brain,
@@ -32,6 +33,7 @@ import {
   Gauge,
   Award,
   Layers,
+  Video,
 } from "lucide-react";
 
 const Home = () => {
@@ -143,6 +145,9 @@ const Home = () => {
         <div className="flex items-center space-x-2">
           <Rocket className="h-5 w-5 text-[#024950]" />
           <h1 className="text-xl font-semibold text-[#003135] dark:text-white">Dashboard</h1>
+        </div>
+        <div className="flex items-center space-x-2">
+          <AnimatedDemoTrigger module="workflow-builder" position="header" />
         </div>
       </div>
 
@@ -379,6 +384,141 @@ const Home = () => {
           </CardContent>
         </Card>
 
+        {/* Interactive Animated Demo Section */}
+        <Card className="bg-white dark:bg-[#003135] border border-[#964734]/30 shadow-xl hover:shadow-2xl transition-all duration-500 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#964734]/20 to-[#0FA4AF]/20 rounded-full -translate-y-16 translate-x-16"></div>
+          <CardContent className="p-8 relative z-10">
+            <div className="text-center mb-8">
+              <div className="relative inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#964734] to-[#0FA4AF] rounded-2xl mb-6">
+                <Video className="h-8 w-8 text-white" />
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#964734] rounded-full animate-pulse"></div>
+              </div>
+              <h2 className="text-3xl font-bold text-[#003135] dark:text-white mb-4">
+                🎬 Watch Interactive Demos
+              </h2>
+              <p className="text-lg text-[#024950] dark:text-[#AFDDE5] max-w-2xl mx-auto mb-8">
+                Experience Axient through cinematic, animated demonstrations. Watch features come to life
+                with smooth animations, visual storytelling, and engaging presentations!
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {[
+                {
+                  icon: <Workflow className="h-6 w-6" />,
+                  title: "Workflow Builder",
+                  description: "Learn drag & drop workflow creation",
+                  link: "/workflows",
+                  module: "workflow-builder" as const,
+                  color: "from-[#964734] to-[#024950]",
+                  badge: "Interactive Demo"
+                },
+                {
+                  icon: <Brain className="h-6 w-6" />,
+                  title: "Knowledge Base",
+                  description: "Discover knowledge management features",
+                  link: "/knowledge-base",
+                  module: "knowledge-base" as const,
+                  color: "from-[#024950] to-[#0FA4AF]",
+                  badge: "Coming Soon"
+                },
+                {
+                  icon: <Sparkles className="h-6 w-6" />,
+                  title: "AI Providers",
+                  description: "Configure AI service connections",
+                  link: "/providers",
+                  module: "providers" as const,
+                  color: "from-[#0FA4AF] to-[#964734]",
+                  badge: "Coming Soon"
+                }
+              ].map((tutorial, index) => (
+                <Card key={tutorial.title} className="bg-gradient-to-br from-[#AFDDE5]/10 to-[#964734]/5 border border-[#964734]/20 hover:border-[#964734]/40 transition-all duration-300 hover:scale-105 group">
+                  <CardContent className="p-6 text-center">
+                    <div className={`inline-flex items-center justify-center w-12 h-12 bg-gradient-to-r ${tutorial.color} rounded-xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                      <div className="text-white">
+                        {tutorial.icon}
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-[#003135] dark:text-white mb-2">{tutorial.title}</h3>
+                    <p className="text-sm text-[#024950] dark:text-[#AFDDE5] mb-4">{tutorial.description}</p>
+                    <Badge className={`mb-4 ${tutorial.badge === "Interactive Demo"
+                      ? "bg-[#964734]/20 text-[#964734] border-[#964734]/30"
+                      : "bg-[#024950]/20 text-[#024950] border-[#024950]/30"
+                      }`}>
+                      {tutorial.badge}
+                    </Badge>
+                    <div className="space-y-2">
+                      {tutorial.badge === "Interactive Demo" ? (
+                        <AnimatedDemoTrigger
+                          module={tutorial.module}
+                          position="inline"
+                          className="w-full"
+                        />
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled
+                          className="w-full border-[#024950]/30 text-[#024950]/50"
+                        >
+                          Tutorial Coming Soon
+                        </Button>
+                      )}
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-[#964734] hover:bg-[#964734]/10"
+                      >
+                        <Link to={tutorial.link}>
+                          Visit Page <ChevronRight className="h-3 w-3 ml-1" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="text-center">
+              <div className="bg-gradient-to-r from-[#964734]/10 to-[#0FA4AF]/10 p-6 rounded-xl border border-[#964734]/20 mb-6">
+                <div className="flex items-center justify-center space-x-4 text-sm text-[#024950] dark:text-[#AFDDE5]">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-[#964734] rounded-full animate-pulse"></div>
+                    <span>Interactive Learning</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4 text-[#964734]" />
+                    <span>3-5 Minutes</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Target className="h-4 w-4 text-[#964734]" />
+                    <span>Hands-on Practice</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <AnimatedDemoTrigger
+                  module="workflow-builder"
+                  position="inline"
+                  className="px-8 py-4 text-lg"
+                />
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="border-[#964734]/30 text-[#964734] hover:bg-[#964734]/10"
+                >
+                  <Link to="/workflows">
+                    <Workflow className="h-5 w-5 mr-2" />
+                    Try Workflow Builder
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Enhanced Get Started Section */}
         <Card className="bg-gradient-to-r from-[#964734] via-[#024950] to-[#0FA4AF] border-0 text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
@@ -447,6 +587,12 @@ const Home = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Floating Animated Demo Trigger */}
+      <AnimatedDemoTrigger
+        module="workflow-builder"
+        position="floating"
+      />
     </div>
   );
 };

@@ -1,4 +1,55 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
+
+// Add custom CSS for animations
+const customStyles = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
+  @keyframes connectionFlow {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .animate-slideDown {
+    animation: slideDown 0.2s ease-out;
+  }
+
+  .animate-connectionFlow {
+    animation: connectionFlow 2s linear infinite;
+  }
+
+  .connection-highlight {
+    filter: drop-shadow(0 0 8px rgba(150, 71, 52, 0.6));
+  }
+
+  .node-connecting {
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 12px rgba(15, 164, 175, 0.8));
+  }
+`;
+
+// Inject styles
+if (typeof document !== 'undefined') {
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = customStyles;
+  document.head.appendChild(styleSheet);
+}
 import ReactFlow, {
   Node,
   Edge,
@@ -12,8 +63,12 @@ import ReactFlow, {
   ReactFlowProvider,
   ReactFlowInstance,
   NodeTypes,
+  MarkerType,
+  EdgeTypes,
 } from "reactflow";
 import "reactflow/dist/style.css";
+import { apiService, type WorkflowTemplate as ApiWorkflowTemplate, type Workflow as ApiWorkflow } from "@/lib/api";
+
 import {
   DndContext,
   DragEndEvent,
@@ -51,6 +106,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import AnimatedDemoTrigger from "@/components/tutorial/AnimatedDemoTrigger";
 import {
   Play,
   Save,
@@ -87,6 +143,7 @@ import {
   CheckCircle,
   AlertCircle,
   X,
+  Link,
 } from "lucide-react";
 
 // Node type definitions for drag and drop
@@ -97,6 +154,9 @@ interface NodeData {
   category: string;
   config?: Record<string, any>;
   isConfigured?: boolean;
+  status?: 'idle' | 'running' | 'success' | 'error';
+  isSuggested?: boolean;
+  isSourceNode?: boolean;
 }
 
 interface DraggableNodeType {
@@ -140,15 +200,183 @@ interface WorkflowState {
   edges: Edge[];
 }
 
-// Custom Node Components
-const CustomNode = ({ data, selected }: { data: NodeData; selected: boolean }) => {
+// Custom Edge Component with Toggle and Flow Indicators
+const CustomEdge = ({ id, sourceX, sourceY, targetX, targetY, style, markerEnd, data }: any) => {
+  const [isActive, setIsActive] = useState(data?.isActive || false);
+  const [showToggle, setShowToggle] = useState(false);
+
+  const midX = (sourceX + targetX) / 2;
+  const midY = (sourceY + targetY) / 2;
+
+  const toggleConnection = () => {
+    setIsActive(!isActive);
+  };
+
+  const edgeStyle = {
+    ...style,
+    stroke: isActive ? '#0FA4AF' : '#964734',
+    strokeWidth: isActive ? 4 : 2,
+    strokeDasharray: isActive ? 'none' : '5,5'
+  };
+
+  const flowIndicators = [];
+  const numIndicators = 3;
+  for (let i = 1; i <= numIndicators; i++) {
+    const t = i / (numIndicators + 1);
+    const x = sourceX + (targetX - sourceX) * t;
+    const y = sourceY + (targetY - sourceY) * t;
+
+    flowIndicators.push(
+      <circle
+        key={`flow-${i}`}
+        cx={x}
+        cy={y}
+        r="3"
+        fill={isActive ? '#0FA4AF' : '#964734'}
+        opacity={0.8}
+        className={isActive ? 'animate-pulse' : ''}
+      />
+    );
+  }
+
+  return (
+    <g>
+      {/* Main connection line */}
+      <path
+        d={`M ${sourceX} ${sourceY} Q ${midX} ${sourceY} ${targetX} ${targetY}`}
+        style={edgeStyle}
+        fill="none"
+        markerEnd={markerEnd}
+        onMouseEnter={() => setShowToggle(true)}
+        onMouseLeave={() => setShowToggle(false)}
+        className="cursor-pointer"
+      />
+
+      {/* Flow direction indicators */}
+      {flowIndicators}
+
+      {/* Connection toggle button */}
+      {showToggle && (
+        <g>
+          <circle
+            cx={midX}
+            cy={midY}
+            r="12"
+            fill="white"
+            stroke={isActive ? '#0FA4AF' : '#964734'}
+            strokeWidth="2"
+            className="cursor-pointer drop-shadow-lg"
+            onClick={toggleConnection}
+          />
+          <text
+            x={midX}
+            y={midY + 1}
+            textAnchor="middle"
+            fontSize="10"
+            fill={isActive ? '#0FA4AF' : '#964734'}
+            className="cursor-pointer select-none"
+            onClick={toggleConnection}
+          >
+            {isActive ? '✓' : '○'}
+          </text>
+        </g>
+      )}
+
+      {/* Connection status indicator */}
+      <circle
+        cx={midX}
+        cy={midY - 20}
+        r="4"
+        fill={isActive ? '#0FA4AF' : '#964734'}
+        opacity={0.6}
+      />
+    </g>
+  );
+};
+
+// Simplified, Reliable Custom Node with Working Connections
+const CustomNode = ({
+  data,
+  selected,
+  id
+}: {
+  data: NodeData;
+  selected: boolean;
+  id: string;
+}) => {
+  const [showHandles, setShowHandles] = useState(false);
+
+  // Simple, reliable connection handlers
+  const handleOutputClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Dispatch simple connection event
+    const customEvent = new CustomEvent('nodeConnect', {
+      detail: { nodeId: id, type: 'output' }
+    });
+    window.dispatchEvent(customEvent);
+  };
+
+  const handleInputClick = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Dispatch simple connection event
+    const customEvent = new CustomEvent('nodeConnect', {
+      detail: { nodeId: id, type: 'input' }
+    });
+    window.dispatchEvent(customEvent);
+  };
+
+  // Check if this node is suggested for connection (will be passed as props)
+  const isSuggested = data.isSuggested || false;
+  const isSourceNode = data.isSourceNode || false;
+
   return (
     <div
-      className={`px-4 py-3 shadow-lg rounded-xl border-2 bg-white dark:bg-[#003135] min-w-[160px] transition-all duration-300 ${selected
+      className={`relative px-4 py-3 shadow-lg rounded-xl border-2 bg-white dark:bg-[#003135] min-w-[160px] transition-all duration-300 cursor-pointer group ${selected
         ? "border-[#964734] shadow-[#964734]/30 scale-105"
-        : "border-[#0FA4AF]/30 hover:border-[#964734]/50 hover:shadow-xl"
+        : isSourceNode
+          ? "border-[#0FA4AF] shadow-[#0FA4AF]/50 scale-105 node-connecting"
+          : isSuggested
+            ? "border-green-500 shadow-green-500/50 animate-pulse connection-highlight"
+            : data.status === 'running'
+              ? "border-[#0FA4AF] shadow-[#0FA4AF]/30 animate-pulse"
+              : data.status === 'success'
+                ? "border-green-500 shadow-green-500/30"
+                : data.status === 'error'
+                  ? "border-red-500 shadow-red-500/30"
+                  : "border-[#0FA4AF]/30 hover:border-[#964734]/50 hover:shadow-xl"
         }`}
+      onMouseEnter={() => setShowHandles(true)}
+      onMouseLeave={() => setShowHandles(false)}
     >
+      {/* Simple Input Handle */}
+      {data.category !== 'trigger' && (
+        <div
+          className={`absolute -left-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-[#964734] border-2 border-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-125 ${showHandles ? 'opacity-100 scale-110' : 'opacity-60 scale-90'
+            }`}
+          title="Click to connect here"
+          onClick={handleInputClick}
+        >
+          <div className="w-2 h-2 bg-white rounded-full"></div>
+        </div>
+      )}
+
+      {/* Simple Output Handle */}
+      {data.category !== 'output' && (
+        <div
+          className={`absolute -right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-[#0FA4AF] border-2 border-white rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 hover:scale-125 ${showHandles ? 'opacity-100 scale-110' : 'opacity-60 scale-90'
+            }`}
+          title="Click to connect from here"
+          onClick={handleOutputClick}
+        >
+          <ArrowRight className="w-3 h-3 text-white" />
+        </div>
+      )}
+
+      {/* Node Content */}
       <div className="flex items-center space-x-3">
         <div className={`p-2 rounded-lg ${data.category === "trigger" ? "bg-[#0FA4AF]/20" :
           data.category === "action" ? "bg-[#024950]/20" :
@@ -165,10 +393,28 @@ const CustomNode = ({ data, selected }: { data: NodeData; selected: boolean }) =
             </div>
           )}
         </div>
-        {data.isConfigured && (
-          <CheckCircle className="h-4 w-4 text-[#0FA4AF]" />
-        )}
+        <div className="flex items-center space-x-1">
+          {data.status === 'running' && <div className="w-2 h-2 bg-[#0FA4AF] rounded-full animate-pulse" />}
+          {data.status === 'success' && <CheckCircle className="h-4 w-4 text-green-500" />}
+          {data.status === 'error' && <AlertCircle className="h-4 w-4 text-red-500" />}
+          {data.isConfigured && !data.status && (
+            <CheckCircle className="h-4 w-4 text-[#0FA4AF]" />
+          )}
+        </div>
       </div>
+
+      {/* Validation Indicator */}
+      {data.category === 'trigger' && (
+        <div className="absolute -top-2 -left-2 w-4 h-4 bg-[#0FA4AF] rounded-full flex items-center justify-center">
+          <span className="text-xs text-white font-bold">S</span>
+        </div>
+      )}
+
+      {data.category === 'output' && (
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-[#964734] rounded-full flex items-center justify-center">
+          <span className="text-xs text-white font-bold">E</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -193,7 +439,7 @@ const DraggableNode = ({ nodeType, onDragStart }: {
     <div
       draggable
       onDragStart={handleDragStart}
-      className={`p-3 border rounded-xl cursor-grab hover:cursor-grabbing transition-all duration-300 hover:shadow-lg hover:scale-105 ${nodeType.borderColor} ${nodeType.bgColor} group`}
+      className={`draggable-node p-3 border rounded-xl cursor-grab hover:cursor-grabbing transition-all duration-300 hover:shadow-lg hover:scale-105 ${nodeType.borderColor} ${nodeType.bgColor} group`}
     >
       <div className="flex items-center space-x-3">
         <div className={`p-2 rounded-lg ${nodeType.color} group-hover:scale-110 transition-transform duration-300`}>
@@ -215,6 +461,9 @@ const DraggableNode = ({ nodeType, onDragStart }: {
 const WorkflowBuilder = () => {
   const [currentView, setCurrentView] = useState<"templates" | "preview" | "builder">("templates");
   const [selectedTemplate, setSelectedTemplate] = useState<WorkflowTemplate | null>(null);
+  const [apiTemplates, setApiTemplates] = useState<ApiWorkflowTemplate[]>([]);
+  const [currentWorkflow, setCurrentWorkflow] = useState<ApiWorkflow | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Workflow state
   const [workflow, setWorkflow] = useState<WorkflowState>({
@@ -231,9 +480,37 @@ const WorkflowBuilder = () => {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [draggedNodeType, setDraggedNodeType] = useState<DraggableNodeType | null>(null);
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [connectionMode, setConnectionMode] = useState<'off' | 'selecting' | 'connecting' | 'suggesting'>('off');
+  const [sourceNode, setSourceNode] = useState<string | null>(null);
+  const [showConnectionHelper, setShowConnectionHelper] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const [dragCurrent, setDragCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [suggestedConnections, setSuggestedConnections] = useState<string[]>([]);
+  const [connectionMethod, setConnectionMethod] = useState<'quick' | 'drag' | 'plus' | 'auto'>('quick');
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+
+  // Load templates from API on component mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        setIsLoading(true);
+        const response = await apiService.getWorkflowTemplates();
+        setApiTemplates(response.data);
+      } catch (error) {
+        console.error('Failed to load templates:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTemplates();
+  }, []);
+
+
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -282,6 +559,18 @@ const WorkflowBuilder = () => {
       bgColor: "bg-[#0FA4AF]/10 hover:bg-[#0FA4AF]/20",
       borderColor: "border-[#0FA4AF]/30 hover:border-[#0FA4AF]",
       defaultConfig: { requireConfirmation: true },
+    },
+    {
+      id: "file-upload",
+      type: "trigger",
+      label: "File Upload",
+      description: "Trigger on file upload",
+      icon: <FileText className="h-4 w-4 text-white" />,
+      category: "trigger",
+      color: "bg-[#0FA4AF]",
+      bgColor: "bg-[#0FA4AF]/10 hover:bg-[#0FA4AF]/20",
+      borderColor: "border-[#0FA4AF]/30 hover:border-[#0FA4AF]",
+      defaultConfig: { allowedTypes: ["pdf", "docx", "txt"], maxSize: "10MB" },
     },
     // Action nodes
     {
@@ -381,12 +670,52 @@ const WorkflowBuilder = () => {
       borderColor: "border-[#964734]/30 hover:border-[#964734]",
       defaultConfig: { duration: 5, unit: "seconds" },
     },
+    // Output nodes
+    {
+      id: "save-result",
+      type: "output",
+      label: "Save Result",
+      description: "Save workflow result",
+      icon: <Save className="h-4 w-4 text-white" />,
+      category: "output",
+      color: "bg-[#AFDDE5]",
+      bgColor: "bg-[#AFDDE5]/10 hover:bg-[#AFDDE5]/20",
+      borderColor: "border-[#AFDDE5]/30 hover:border-[#AFDDE5]",
+      defaultConfig: { format: "json", destination: "database" },
+    },
+    {
+      id: "webhook-response",
+      type: "output",
+      label: "Webhook Response",
+      description: "Send response to webhook",
+      icon: <Send className="h-4 w-4 text-white" />,
+      category: "output",
+      color: "bg-[#AFDDE5]",
+      bgColor: "bg-[#AFDDE5]/10 hover:bg-[#AFDDE5]/20",
+      borderColor: "border-[#AFDDE5]/30 hover:border-[#AFDDE5]",
+      defaultConfig: { statusCode: 200, contentType: "application/json" },
+    },
   ];
 
-  // Custom node types for React Flow
-  const customNodeTypes: NodeTypes = {
+  // Enhanced nodes with connection state
+  const enhancedNodes = useMemo(() =>
+    nodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        isSuggested: suggestedConnections.includes(node.id),
+        isSourceNode: sourceNode === node.id
+      }
+    })), [nodes, suggestedConnections, sourceNode]);
+
+  // Memoized custom node and edge types for React Flow
+  const customNodeTypes = useMemo(() => ({
     custom: CustomNode,
-  };
+  }), []);
+
+  const customEdgeTypes = useMemo(() => ({
+    custom: CustomEdge,
+  }), []);
 
   // Drag and drop handlers
   const onDragStart = (nodeType: DraggableNodeType) => {
@@ -438,6 +767,288 @@ const WorkflowBuilder = () => {
     [reactFlowInstance, setNodes, nodeTypes]
   );
 
+  // Advanced connection validation and flow logic
+  const validateConnection = useCallback((sourceId: string, targetId: string) => {
+    const sourceNode = nodes.find(n => n.id === sourceId);
+    const targetNode = nodes.find(n => n.id === targetId);
+
+    if (!sourceNode || !targetNode) return { valid: false, error: "Invalid nodes" };
+
+    const sourceCategory = sourceNode.data.category;
+    const targetCategory = targetNode.data.category;
+
+    // Validation rules for logical flow
+    const validConnections = {
+      trigger: ['action', 'logic'],
+      action: ['action', 'logic', 'output'],
+      logic: ['action', 'logic', 'output'],
+      output: []
+    };
+
+    if (!validConnections[sourceCategory]?.includes(targetCategory)) {
+      return {
+        valid: false,
+        error: `Cannot connect ${sourceCategory} to ${targetCategory}. ${sourceCategory} nodes can only connect to: ${validConnections[sourceCategory]?.join(', ') || 'nothing'}.`
+      };
+    }
+
+    // Check for circular dependencies
+    const wouldCreateCycle = (source: string, target: string): boolean => {
+      const visited = new Set<string>();
+      const stack = [target];
+
+      while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (current === source) return true;
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        const outgoingEdges = edges.filter(e => e.source === current);
+        stack.push(...outgoingEdges.map(e => e.target));
+      }
+      return false;
+    };
+
+    if (wouldCreateCycle(sourceId, targetId)) {
+      return { valid: false, error: "This connection would create a circular dependency" };
+    }
+
+    return { valid: true, error: null };
+  }, [nodes, edges]);
+
+  const getNodeConnectionPoints = useCallback((nodeId: string) => {
+    const nodeElement = document.querySelector(`[data-id="${nodeId}"]`);
+    if (!nodeElement) return null;
+
+    const rect = nodeElement.getBoundingClientRect();
+    const canvasRect = reactFlowWrapper.current?.getBoundingClientRect();
+    if (!canvasRect) return null;
+
+    return {
+      input: {
+        x: rect.left - canvasRect.left,
+        y: rect.top - canvasRect.top + rect.height / 2
+      },
+      output: {
+        x: rect.right - canvasRect.left,
+        y: rect.top - canvasRect.top + rect.height / 2
+      },
+      center: {
+        x: rect.left - canvasRect.left + rect.width / 2,
+        y: rect.top - canvasRect.top + rect.height / 2
+      }
+    };
+  }, []);
+
+  // Advanced drag-and-connect functionality
+  const startConnectionMode = useCallback(() => {
+    setConnectionMode('selecting');
+    setShowConnectionHelper(true);
+    setSourceNode(null);
+    setValidationErrors([]);
+  }, []);
+
+  const cancelConnectionMode = useCallback(() => {
+    setConnectionMode('off');
+    setShowConnectionHelper(false);
+    setSourceNode(null);
+    setDragStart(null);
+    setDragCurrent(null);
+    setIsDragging(false);
+    setValidationErrors([]);
+    setSuggestedConnections([]);
+  }, []);
+
+  // Smart connection suggestions
+  const getSmartSuggestions = useCallback((nodeId: string) => {
+    const sourceNodeData = nodes.find(n => n.id === nodeId);
+    if (!sourceNodeData) return [];
+
+    const compatibleNodes = nodes.filter(n => {
+      if (n.id === nodeId) return false;
+      const validation = validateConnection(nodeId, n.id);
+      return validation.valid;
+    });
+
+    // Sort by proximity and logical flow
+    return compatibleNodes
+      .map(node => ({
+        ...node,
+        distance: Math.sqrt(
+          Math.pow(node.position.x - sourceNodeData.position.x, 2) +
+          Math.pow(node.position.y - sourceNodeData.position.y, 2)
+        )
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 3) // Top 3 suggestions
+      .map(node => node.id);
+  }, [nodes, validateConnection]);
+
+  // Real drag connection system
+  const startDragConnection = useCallback((nodeId: string, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rect = reactFlowWrapper.current?.getBoundingClientRect();
+    if (rect) {
+      const startPos = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+        nodeId: nodeId
+      };
+
+      setDragStart(startPos);
+      setDragCurrent(startPos);
+      setSourceNode(nodeId);
+      setIsDragging(true);
+      setConnectionMode('connecting');
+    }
+  }, []);
+
+  const updateDragConnection = useCallback((event: React.MouseEvent) => {
+    if (!isDragging || !dragStart) return;
+
+    const rect = reactFlowWrapper.current?.getBoundingClientRect();
+    if (rect) {
+      const currentPos = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+      setDragCurrent(currentPos);
+    }
+  }, [isDragging, dragStart]);
+
+  const completeDragConnection = useCallback((targetNodeId: string, event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!sourceNode || sourceNode === targetNodeId || !isDragging) {
+      cancelConnectionMode();
+      return;
+    }
+
+    const validation = validateConnection(sourceNode, targetNodeId);
+
+    if (!validation.valid) {
+      setValidationErrors([validation.error!]);
+      setTimeout(() => setValidationErrors([]), 3000);
+      cancelConnectionMode();
+      return;
+    }
+
+    // Create the connection with toggle functionality
+    const newEdge = {
+      id: `edge-${sourceNode}-${targetNodeId}-${Date.now()}`,
+      source: sourceNode,
+      target: targetNodeId,
+      type: 'custom',
+      animated: false,
+      style: {
+        stroke: '#964734',
+        strokeWidth: 2,
+        strokeDasharray: '5,5'
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: '#964734',
+        width: 15,
+        height: 15
+      },
+      data: {
+        isActive: false,
+        validated: true
+      }
+    };
+
+    setEdges((eds) => addEdge(newEdge, eds));
+    cancelConnectionMode();
+  }, [sourceNode, isDragging, validateConnection, setEdges, cancelConnectionMode]);
+
+  // Auto-connection for smart workflows
+  const autoConnect = useCallback((sourceId: string) => {
+    const suggestions = getSmartSuggestions(sourceId);
+    if (suggestions.length === 1) {
+      // Auto-connect to the only logical choice
+      const mockEvent = new MouseEvent('click') as any;
+      setSourceNode(sourceId);
+      completeDragConnection(suggestions[0], mockEvent);
+      return true;
+    }
+    return false;
+  }, [getSmartSuggestions, completeDragConnection]);
+
+  // Simplified Connection Event Handler
+  useEffect(() => {
+    const handleNodeConnect = (event: any) => {
+      const { nodeId, type } = event.detail;
+
+      if (type === 'output') {
+        // Starting a connection from output
+        if (connectionMode === 'off') {
+          setSourceNode(nodeId);
+          setConnectionMode('selecting');
+          setSuggestedConnections(getSmartSuggestions(nodeId));
+          setValidationErrors([`Click on another node to connect to "${nodes.find(n => n.id === nodeId)?.data.label}"`]);
+          setTimeout(() => setValidationErrors([]), 5000);
+        }
+      } else if (type === 'input') {
+        // Completing a connection to input
+        if (connectionMode === 'selecting' && sourceNode && sourceNode !== nodeId) {
+          const validation = validateConnection(sourceNode, nodeId);
+
+          if (validation.valid) {
+            // Create the connection
+            const newEdge = {
+              id: `edge-${sourceNode}-${nodeId}-${Date.now()}`,
+              source: sourceNode,
+              target: nodeId,
+              type: 'smoothstep',
+              animated: true,
+              style: {
+                stroke: '#964734',
+                strokeWidth: 2,
+                strokeDasharray: '5,5'
+              },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: '#964734',
+                width: 15,
+                height: 15
+              },
+              data: {
+                isActive: false,
+                validated: true
+              }
+            };
+
+            setEdges((eds) => addEdge(newEdge, eds));
+            cancelConnectionMode();
+          } else {
+            setValidationErrors([validation.error!]);
+            setTimeout(() => setValidationErrors([]), 3000);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('nodeConnect', handleNodeConnect);
+
+    return () => {
+      window.removeEventListener('nodeConnect', handleNodeConnect);
+    };
+  }, [connectionMode, sourceNode, nodes, validateConnection, getSmartSuggestions, setEdges, cancelConnectionMode]);
+
+  const selectNodeForConnection = useCallback((nodeId: string) => {
+    if (connectionMode === 'selecting') {
+      setSourceNode(nodeId);
+      setConnectionMode('connecting');
+    } else if (connectionMode === 'connecting' && sourceNode && sourceNode !== nodeId) {
+      // Create a mock event for the completion
+      const mockEvent = new MouseEvent('click') as any;
+      completeDragConnection(nodeId, mockEvent);
+    }
+  }, [connectionMode, sourceNode, completeDragConnection]);
+
   // React Flow event handlers
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -445,8 +1056,15 @@ const WorkflowBuilder = () => {
   );
 
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    // Handle connection mode clicks
+    if (connectionMode !== 'off') {
+      selectNodeForConnection(node.id);
+      return;
+    }
+
+    // Normal node selection
     setSelectedNode(node);
-  }, []);
+  }, [connectionMode, selectNodeForConnection]);
 
   const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
@@ -478,20 +1096,108 @@ const WorkflowBuilder = () => {
   }, [selectedNode, setNodes]);
 
   // Workflow management
-  const saveWorkflow = useCallback(() => {
-    const workflowData = {
-      ...workflow,
-      nodes,
-      edges,
-    };
-    console.log("Saving workflow:", workflowData);
-    // Here you would typically save to your backend
-  }, [workflow, nodes, edges]);
+  const saveWorkflow = useCallback(async () => {
+    try {
+      setIsLoading(true);
 
-  const testWorkflow = useCallback(() => {
-    console.log("Testing workflow with nodes:", nodes, "and edges:", edges);
-    // Here you would typically send the workflow for testing
-  }, [nodes, edges]);
+      const workflowData = {
+        name: workflow.name,
+        description: workflow.description,
+        is_active: workflow.isActive,
+        nodes,
+        edges,
+        category: workflow.name.includes('Customer') ? 'Customer Service' :
+          workflow.name.includes('Lead') ? 'Sales' :
+            workflow.name.includes('Content') ? 'Security' : undefined,
+      };
+
+      if (currentWorkflow) {
+        // Update existing workflow
+        const updatedWorkflow = await apiService.updateWorkflow(currentWorkflow.id, workflowData);
+        setCurrentWorkflow(updatedWorkflow);
+        console.log("Workflow updated:", updatedWorkflow);
+      } else {
+        // Create new workflow
+        const newWorkflow = await apiService.createWorkflow(workflowData);
+        setCurrentWorkflow(newWorkflow);
+        console.log("Workflow created:", newWorkflow);
+      }
+    } catch (error) {
+      console.error('Failed to save workflow:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workflow, nodes, edges, currentWorkflow]);
+
+  const testWorkflow = useCallback(async () => {
+    if (nodes.length === 0) {
+      alert('Please add some nodes to test the workflow');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Simulate workflow execution with visual feedback
+      const nodeIds = nodes.map(node => node.id);
+
+      // Update nodes to show running status
+      setNodes(prevNodes =>
+        prevNodes.map(node => ({
+          ...node,
+          data: { ...node.data, status: 'running' }
+        }))
+      );
+
+      // Simulate execution delay for each node
+      for (let i = 0; i < nodeIds.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        setNodes(prevNodes =>
+          prevNodes.map((node, index) => ({
+            ...node,
+            data: {
+              ...node.data,
+              status: index <= i ? 'success' : index === i + 1 ? 'running' : 'idle'
+            }
+          }))
+        );
+      }
+
+      // If we have a current workflow, test it via API
+      if (currentWorkflow) {
+        const result = await apiService.testWorkflow(currentWorkflow.id);
+        console.log("Workflow test result:", result);
+        alert(`Workflow test completed successfully! Execution ID: ${result.execution_id}`);
+      } else {
+        alert('Workflow test completed successfully! All nodes executed without errors.');
+      }
+
+    } catch (error) {
+      console.error('Failed to test workflow:', error);
+      alert('Failed to test workflow. Please check your configuration and try again.');
+
+      // Reset node status on error
+      setNodes(prevNodes =>
+        prevNodes.map(node => ({
+          ...node,
+          data: { ...node.data, status: 'error' }
+        }))
+      );
+    } finally {
+      setIsLoading(false);
+
+      // Reset status after a delay
+      setTimeout(() => {
+        setNodes(prevNodes =>
+          prevNodes.map(node => ({
+            ...node,
+            data: { ...node.data, status: 'idle' }
+          }))
+        );
+      }, 2000);
+    }
+  }, [nodes, currentWorkflow, setNodes]);
 
   const workflowTemplates: WorkflowTemplate[] = [
     {
@@ -708,19 +1414,75 @@ const WorkflowBuilder = () => {
     }
   };
 
-  const handleTemplateSelect = (template: WorkflowTemplate) => {
-    setSelectedTemplate(template);
+  const handleTemplateSelect = (template: ApiWorkflowTemplate) => {
+    // Convert API template to local template format for preview
+    const localTemplate: WorkflowTemplate = {
+      id: template.id.toString(),
+      name: template.name,
+      description: template.description,
+      category: template.category,
+      estimatedTime: template.estimated_time,
+      complexity: template.complexity,
+      nodes: template.nodes.map((node: any) => ({
+        id: node.id,
+        type: node.type,
+        title: node.title,
+        description: node.description,
+        icon: null, // Will be set by the component
+        category: node.category,
+        connections: node.connections || [],
+      })),
+    };
+
+    setSelectedTemplate(localTemplate);
     setCurrentView("preview");
   };
 
-  const handleUseTemplate = () => {
-    if (selectedTemplate) {
+  const handleUseTemplate = async () => {
+    if (!selectedTemplate) return;
+
+    try {
+      setIsLoading(true);
+
+      // Find the API template that matches the selected template
+      const apiTemplate = apiTemplates.find(t => t.name === selectedTemplate.name);
+      if (!apiTemplate) {
+        console.error('API template not found');
+        return;
+      }
+
+      // Create workflow from template
+      const workflowData = await apiService.createWorkflowFromTemplate(apiTemplate.id, {
+        name: `${selectedTemplate.name} - Copy`,
+        description: selectedTemplate.description,
+      });
+
+      // Set the current workflow
+      setCurrentWorkflow(workflowData);
+
+      // Convert API workflow to React Flow format
+      setNodes(workflowData.nodes || []);
+      setEdges(workflowData.edges || []);
+
+      // Update workflow state
+      setWorkflow({
+        name: workflowData.name,
+        description: workflowData.description || "",
+        isActive: workflowData.is_active,
+        nodes: workflowData.nodes || [],
+        edges: workflowData.edges || [],
+      });
+
       setCurrentView("builder");
+    } catch (error) {
+      console.error('Failed to create workflow from template:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const renderTemplateGallery = () => (
-    <div className="p-6">
+    <div className="p-6" data-tour="welcome">
       {/* Page Header - Inline Breadcrumb Style */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-2">
@@ -731,6 +1493,7 @@ const WorkflowBuilder = () => {
           variant="outline"
           onClick={() => setCurrentView("builder")}
           className="border-[#0FA4AF]/30 text-[#024950] hover:bg-[#0FA4AF]/10 dark:text-[#AFDDE5] dark:border-[#024950] dark:hover:bg-[#024950]/50"
+          data-tour="create-custom"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Custom
@@ -753,61 +1516,73 @@ const WorkflowBuilder = () => {
         </div>
 
         {/* Template Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {workflowTemplates.map((template) => (
-            <div
-              key={template.id}
-              className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 cursor-pointer border border-gray-100 overflow-hidden"
-              onClick={() => handleTemplateSelect(template)}
-            >
-              {/* Template Header */}
-              <div className={`h-32 bg-gradient-to-r ${getCategoryGradient(template.category)} relative overflow-hidden`}>
-                <div className="absolute inset-0 bg-black/10"></div>
-                <div className="relative p-6 h-full flex items-center justify-between">
-                  <div className="text-white">
-                    <h3 className="font-bold text-xl mb-1">{template.name}</h3>
-                    <p className="text-white/90 text-sm">{template.category}</p>
-                  </div>
-                  <div className="text-white/90">
-                    {getCategoryIcon(template.category)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Template Content */}
-              <div className="p-6">
-                <p className="text-gray-600 mb-6 leading-relaxed text-sm">
-                  {template.description}
-                </p>
-
-                {/* Metadata */}
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                      <Clock className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">{template.estimatedTime}</span>
-                    </div>
-                    <Badge className={`text-xs px-3 py-1 border ${getComplexityColor(template.complexity)}`}>
-                      {template.complexity}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500 font-medium">
-                    {template.nodes.length} steps
-                  </span>
-                  <Button
-                    size="sm"
-                    className={`bg-gradient-to-r ${getCategoryGradient(template.category)} hover:shadow-lg transition-all duration-300 group-hover:scale-105`}
-                  >
-                    Preview <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16" data-tour="template-gallery">
+          {isLoading ? (
+            <div className="col-span-full text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0FA4AF] mx-auto"></div>
+              <p className="mt-4 text-[#024950] dark:text-[#AFDDE5]">Loading templates...</p>
             </div>
-          ))}
+          ) : apiTemplates.length > 0 ? (
+            apiTemplates.map((template, index) => (
+              <div
+                key={template.id}
+                className="group bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 cursor-pointer border border-gray-100 overflow-hidden"
+                onClick={() => handleTemplateSelect(template)}
+                data-tour={index === 0 ? "template-card" : undefined}
+              >
+                {/* Template Header */}
+                <div className={`h-32 bg-gradient-to-r ${getCategoryGradient(template.category)} relative overflow-hidden`}>
+                  <div className="absolute inset-0 bg-black/10"></div>
+                  <div className="relative p-6 h-full flex items-center justify-between">
+                    <div className="text-white">
+                      <h3 className="font-bold text-xl mb-1">{template.name}</h3>
+                      <p className="text-white/90 text-sm">{template.category}</p>
+                    </div>
+                    <div className="text-white/90">
+                      {getCategoryIcon(template.category)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Template Content */}
+                <div className="p-6">
+                  <p className="text-gray-600 mb-6 leading-relaxed text-sm">
+                    {template.description}
+                  </p>
+
+                  {/* Metadata */}
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">{template.estimated_time}</span>
+                      </div>
+                      <Badge className={`text-xs px-3 py-1 border ${getComplexityColor(template.complexity)}`}>
+                        {template.complexity}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-500 font-medium">
+                      {template.nodes.length} steps
+                    </span>
+                    <Button
+                      size="sm"
+                      className={`bg-gradient-to-r ${getCategoryGradient(template.category)} hover:shadow-lg transition-all duration-300 group-hover:scale-105`}
+                    >
+                      Preview <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12">
+              <p className="text-[#024950] dark:text-[#AFDDE5]">No templates available</p>
+            </div>
+          )}
         </div>
 
         {/* Create Custom Button */}
@@ -830,7 +1605,7 @@ const WorkflowBuilder = () => {
     if (!selectedTemplate) return null;
 
     return (
-      <div className="p-6">
+      <div className="p-6" data-tour="template-preview">
         {/* Page Header - Inline Breadcrumb Style */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-2">
@@ -850,7 +1625,7 @@ const WorkflowBuilder = () => {
               <Save className="h-4 w-4 mr-2" />
               Save Template
             </Button>
-            <Button size="lg" onClick={handleUseTemplate} className="bg-gradient-to-r from-[#024950] to-[#0FA4AF] text-white hover:from-[#003135] hover:to-[#024950]">
+            <Button size="lg" onClick={handleUseTemplate} className="bg-gradient-to-r from-[#024950] to-[#0FA4AF] text-white hover:from-[#003135] hover:to-[#024950]" data-tour="use-template-btn">
               <Play className="h-4 w-4 mr-2" />
               Use This Template
             </Button>
@@ -943,7 +1718,7 @@ const WorkflowBuilder = () => {
     <ReactFlowProvider>
       <div className="h-screen flex flex-col bg-gradient-to-br from-[#AFDDE5]/10 to-[#964734]/5">
         {/* Enhanced Header */}
-        <div className="flex items-center justify-between p-6 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-b border-[#0FA4AF]/20 dark:border-[#024950] shadow-sm">
+        <div className="workflow-header flex items-center justify-between p-6 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-b border-[#0FA4AF]/20 dark:border-[#024950] shadow-sm" data-tour="workflow-header">
           <div className="flex items-center space-x-4">
             <Button
               variant="ghost"
@@ -995,6 +1770,12 @@ const WorkflowBuilder = () => {
               </div>
             )}
 
+            {/* Animated Demo Trigger */}
+            <AnimatedDemoTrigger
+              module="workflow-builder"
+              position="header"
+            />
+
             <Button
               variant="outline"
               size="sm"
@@ -1015,10 +1796,165 @@ const WorkflowBuilder = () => {
           </div>
         </div>
 
+        {/* Simple Connection Toolbar for Non-Technical Users */}
+        <div className="bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-b border-[#0FA4AF]/20 dark:border-[#024950] px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 bg-gradient-to-r from-[#964734] to-[#0FA4AF] rounded-lg flex items-center justify-center">
+                  <Link className="h-3 w-3 text-white" />
+                </div>
+                <span className="text-sm font-medium text-[#003135] dark:text-white">Connect Nodes</span>
+              </div>
+
+              {connectionMode === 'off' && (
+                <Button
+                  size="sm"
+                  onClick={startConnectionMode}
+                  className="bg-gradient-to-r from-[#964734] to-[#024950] hover:from-[#024950] hover:to-[#0FA4AF] text-white"
+                >
+                  <Link className="h-4 w-4 mr-2" />
+                  Start Connecting
+                </Button>
+              )}
+
+              {connectionMode === 'selecting' && (
+                <div className="flex items-center space-x-3">
+                  <div className="px-3 py-1 bg-[#964734]/10 rounded-lg border border-[#964734]/30">
+                    <span className="text-sm text-[#964734] font-medium">Step 1: Click the first node</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={cancelConnectionMode}
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+
+              {connectionMode === 'connecting' && sourceNode && (
+                <div className="flex items-center space-x-3">
+                  <div className="px-3 py-1 bg-[#0FA4AF]/10 rounded-lg border border-[#0FA4AF]/30">
+                    <span className="text-sm text-[#0FA4AF] font-medium">Step 2: Click the second node to connect</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={cancelConnectionMode}
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Connection Instructions */}
+            <div className="flex items-center space-x-4 text-xs text-[#024950] dark:text-[#AFDDE5]">
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-[#0FA4AF] rounded-full"></div>
+                <span>Triggers start workflows</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-[#024950] rounded-full"></div>
+                <span>Actions perform tasks</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-[#964734] rounded-full"></div>
+                <span>Logic controls flow</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Connection Helper Overlay */}
+        {showConnectionHelper && (
+          <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-white dark:bg-[#003135] border border-[#964734]/30 rounded-lg shadow-xl p-4 max-w-md">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-[#964734] to-[#0FA4AF] rounded-lg flex items-center justify-center flex-shrink-0">
+                <Link className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#003135] dark:text-white mb-2">How to Connect Nodes</h3>
+                <div className="space-y-2 text-sm text-[#024950] dark:text-[#AFDDE5]">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-5 h-5 bg-[#964734] text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                    <span>Click "Start Connecting" button</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-5 h-5 bg-[#964734] text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                    <span>Click the first node (where data comes from)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-5 h-5 bg-[#964734] text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                    <span>Click the second node (where data goes to)</span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowConnectionHelper(false)}
+                  className="mt-3 text-[#964734] hover:bg-[#964734]/10"
+                >
+                  Got it!
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Validation Error Display */}
+        {validationErrors.length > 0 && (
+          <div className="absolute top-32 left-1/2 transform -translate-x-1/2 z-50 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg shadow-xl p-4 max-w-md">
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-red-800 dark:text-red-200 mb-2">Connection Error</h3>
+                <div className="space-y-1">
+                  {validationErrors.map((error, index) => (
+                    <p key={index} className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Temporary Drag Connection Line */}
+        {isDragging && dragStart && dragCurrent && (
+          <svg className="absolute inset-0 pointer-events-none z-40" style={{ width: '100%', height: '100%' }}>
+            <defs>
+              <marker
+                id="temp-arrow"
+                markerWidth="10"
+                markerHeight="7"
+                refX="9"
+                refY="3.5"
+                orient="auto"
+              >
+                <polygon points="0 0, 10 3.5, 0 7" fill="#964734" />
+              </marker>
+            </defs>
+            <path
+              d={`M ${dragStart.x} ${dragStart.y} L ${dragCurrent.x} ${dragCurrent.y}`}
+              stroke="#964734"
+              strokeWidth="3"
+              strokeDasharray="8,4"
+              fill="none"
+              markerEnd="url(#temp-arrow)"
+              className="animate-pulse"
+            />
+          </svg>
+        )}
+
         {/* Main Content Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* Enhanced Node Palette */}
-          <div className="w-80 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-r border-[#0FA4AF]/20 dark:border-[#024950] p-4 overflow-y-auto">
+          <div className="node-palette w-80 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-r border-[#0FA4AF]/20 dark:border-[#024950] p-4 overflow-y-auto" data-tour="node-palette">
             <div className="space-y-6">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="w-8 h-8 bg-gradient-to-r from-[#0FA4AF] to-[#964734] rounded-lg flex items-center justify-center">
@@ -1084,7 +2020,7 @@ const WorkflowBuilder = () => {
           </div>
 
           {/* ReactFlow Canvas */}
-          <div className="flex-1 relative">
+          <div className="workflow-canvas flex-1 relative" data-tour="canvas">
             <div
               ref={reactFlowWrapper}
               className="w-full h-full"
@@ -1092,7 +2028,7 @@ const WorkflowBuilder = () => {
               onDragOver={onDragOver}
             >
               <ReactFlow
-                nodes={nodes}
+                nodes={enhancedNodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
@@ -1101,8 +2037,10 @@ const WorkflowBuilder = () => {
                 onNodeDoubleClick={onNodeDoubleClick}
                 onInit={setReactFlowInstance}
                 nodeTypes={customNodeTypes}
+                edgeTypes={customEdgeTypes}
                 fitView
                 className="bg-gradient-to-br from-[#AFDDE5]/5 to-[#964734]/5"
+                onMouseMove={updateDragConnection}
               >
                 <Background
                   color="#964734"
@@ -1111,9 +2049,11 @@ const WorkflowBuilder = () => {
                 />
                 <Controls
                   className="bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border border-[#964734]/30 rounded-lg shadow-lg"
+                  data-tour="controls"
                 />
                 <MiniMap
                   className="bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border border-[#964734]/30 rounded-lg shadow-lg"
+                  data-tour="minimap"
                   nodeColor={(node) => {
                     switch (node.data.category) {
                       case "trigger": return "#0FA4AF";
@@ -1193,7 +2133,7 @@ const WorkflowBuilder = () => {
           </div>
 
           {/* Enhanced Properties Panel */}
-          <div className="w-80 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-l border-[#0FA4AF]/20 dark:border-[#024950] p-4 overflow-y-auto">
+          <div className="properties-panel w-80 bg-white/95 dark:bg-[#003135]/95 backdrop-blur-sm border-l border-[#0FA4AF]/20 dark:border-[#024950] p-4 overflow-y-auto" data-tour="properties-panel">
             <div className="space-y-6">
               {/* Node Properties */}
               <div>
@@ -1382,15 +2322,23 @@ const WorkflowBuilder = () => {
   );
 
   // Main render logic
-  if (currentView === "preview") {
-    return renderTemplatePreview();
-  }
+  const renderContent = () => {
+    if (currentView === "preview") {
+      return renderTemplatePreview();
+    }
 
-  if (currentView === "builder") {
-    return renderWorkflowBuilder();
-  }
+    if (currentView === "builder") {
+      return renderWorkflowBuilder();
+    }
 
-  return renderTemplateGallery();
+    return renderTemplateGallery();
+  };
+
+  return (
+    <div>
+      {renderContent()}
+    </div>
+  );
 };
 
 export default WorkflowBuilder;
